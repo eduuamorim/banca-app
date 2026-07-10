@@ -31,7 +31,7 @@ Não pule passos. Não faça fora de ordem. Se travar, vá até o final do guia,
 
 Se você **já publicou** e está só atualizando, faça duas coisas:
 
-**1. Rode o `schema.sql` de novo.** Ele adiciona as colunas novas (código curto, nome da aposta, ícone da casa) sem apagar nada. Suas apostas antigas ganham um código automaticamente.
+**1. Rode o `schema.sql` de novo.** Ele adiciona as colunas novas (código curto, nome da aposta, ícone da casa) e instala a trava que impede alterar a identidade de uma aposta. Nada é apagado. Suas apostas antigas ganham um código automaticamente.
 
 **2. Suba os arquivos novos no GitHub.** A Vercel republica sozinha.
 
@@ -543,19 +543,29 @@ O app vira um ícone na tela inicial, igual a um aplicativo de verdade.
 
 ### Jeito rápido: o print
 
-**1.** Tire o print do bilhete na casa de aposta
+**1.** **Escolha a stake** nos botões: Cheia, Média ou Baixa
 
-**2.** Copie a imagem
+**2.** Tire o print do bilhete na casa de aposta
+
+**3.** Copie a imagem
 - **Computador:** `Win + Shift + S` recorta a tela e já copia
 - **Celular:** print normal, depois toque na caixa do app e escolha da galeria
 
-**3.** Dentro do app, aperte **`Ctrl + V`**
+**4.** Dentro do app, aperte **`Ctrl + V`**
 
-**4.** Espere 3 a 5 segundos
+**5.** Espere 3 a 5 segundos
 
-**5.** Evento, odd e valor aparecem preenchidos
+**6.** **Evento** e **odd** aparecem preenchidos
 
-**6.** **Confira** e clique em **Registrar aposta**
+**7.** **Confira** e clique em **Registrar aposta**
+
+### 🛑 O print nunca mexe na sua stake
+
+Mesmo que o bilhete mostre que você apostou R$ 150, o app mantém o valor que você escolheu nos botões.
+
+A stake é decisão sua. Ela vem sempre do percentual da banca, nunca do print.
+
+Do bilhete saem só três coisas: **o evento**, **a odd** e **o nome da casa**.
 
 ### Como saber se leu bem
 
@@ -588,11 +598,33 @@ Serve para você falar da aposta com a outra pessoa sem descrever o jogo inteiro
 
 ## O nome da aposta
 
-Se o print for lido, o nome sai do confronto: **Flamengo x Palmeiras**.
+**Não existe campo de nome.** Ele sai sozinho do evento.
 
-Se não for lido, ou se você deixar o campo vazio, ela nasce como **Aposta K3F9** — o código dela.
+Se o evento for **"Flamengo x Palmeiras — Mais de 1.5 gols"**, a aposta aparece na lista como **Flamengo x Palmeiras**.
 
-Você pode trocar o nome quando quiser, editando a aposta.
+Se o evento ficar vazio, ela nasce como **Aposta K3F9**, usando o código dela.
+
+### Depois de cadastrada, não muda mais
+
+Ao **editar** uma aposta, o evento aparece com um cadeado. Nome, evento, código e dono ficam congelados.
+
+Você ainda pode mudar a data, a casa, a stake, a odd, o status e a observação.
+
+Isso não é só uma trava de tela. O banco de dados **recusa** qualquer tentativa de alterar esses quatro campos, mesmo vindo de fora do app. Uma aposta cadastrada continua sendo a mesma aposta, sempre.
+
+## Resolver sem abrir a aposta
+
+Nas apostas **abertas**, botões aparecem direto na linha:
+
+| Botão | O que faz |
+|---|---|
+| **✓** verde | marca como Green |
+| **✕** vermelho | marca como Red |
+| **⋯** cinza | abre Anulada e Cashout |
+
+Clicar neles **não abre** o detalhe. A confirmação com o valor em reais aparece igual.
+
+Para ver tudo da aposta, clique em qualquer outro ponto da linha.
 
 ## Resolver uma aposta
 
