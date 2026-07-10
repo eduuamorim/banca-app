@@ -1,8 +1,8 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Link2, ImagePlus, Loader2, Sparkles, AlertTriangle, X, Wand2, Cpu } from "lucide-react";
-import { C, F, Modal, Input, Select, Label, Btn, ST } from "@/lib/ui";
-import { uid, hoje, n, brl, sgn } from "@/lib/calc";
+import { C, Modal, Input, Select, Label, Btn, ST, Codigo, IconeCasa, Aviso } from "@/lib/ui";
+import { uid, hoje, n, brl, sgn, nomeDoEvento, nomePadrao } from "@/lib/calc";
 import { lerBilheteNoAparelho, encerrarOcr } from "@/lib/ocrLocal";
 
 /* ═══════════════════════════════════════════════════════
@@ -177,18 +177,8 @@ function AutoFill({ token, onDados }) {
           onChange={(e) => { lerImagem(e.target.files?.[0]); e.target.value = ""; }} />
       </div>
 
-      {erro && (
-        <div className="flex items-start gap-2 mt-3 rounded-lg px-3 py-2" style={{ background: C.amberSoft, border: `1px solid ${C.amberBand}` }}>
-          <AlertTriangle size={14} style={{ color: C.amber, marginTop: 2 }} className="shrink-0" />
-          <p style={{ fontSize: 12.5, color: "#8A6212" }}>{erro} Preencha na mão abaixo.</p>
-        </div>
-      )}
-      {sucesso && (
-        <div className="flex items-center gap-2 mt-3 rounded-lg px-3 py-2" style={{ background: C.greenSoft, border: `1px solid ${C.greenBand}` }}>
-          <Sparkles size={14} style={{ color: C.greenDeep }} className="shrink-0" />
-          <p style={{ fontSize: 12.5, color: C.greenDeep }}>{sucesso}</p>
-        </div>
-      )}
+      {erro && <div className="mt-3"><Aviso tom="amber" icone={AlertTriangle}>{erro} Preencha na mão abaixo.</Aviso></div>}
+      {sucesso && <div className="mt-3"><Aviso tom="green" icone={Sparkles}>{sucesso}</Aviso></div>}
     </div>
   );
 }
@@ -198,6 +188,8 @@ function AutoFill({ token, onDados }) {
 export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, valorStake, salvarAposta, dia, sessao }) {
   const inicial = bet && bet.id ? bet : {
     id: uid(),
+    codigo: "",
+    nome: "",
     data: dia || hoje(),
     usuarioId: me.id,
     casaId: "",
@@ -222,7 +214,11 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
   const aplicar = useCallback((d) => {
     setF((p) => {
       const novo = { ...p };
-      if (d.evento) novo.evento = d.evento;
+      if (d.evento) {
+        novo.evento = d.evento;
+        // o nome curto sai do confronto, para você se localizar na lista
+        if (!novo.nome) novo.nome = nomeDoEvento(d.evento);
+      }
       if (d.odd) novo.odd = d.odd;
       if (d.valor) {
         novo.valor = d.valor;
@@ -253,7 +249,7 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
         {!editando && <AutoFill token={sessao.access_token} onDados={aplicar} />}
 
         {auto && (
-          <div className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: C.blueSoft, border: "1px solid #C2DAE5" }}>
+          <div className="anim-aviso flex items-center justify-between rounded-lg px-3 py-2" style={{ background: C.blueSoft, border: `1px solid ${C.blueBand}` }}>
             <p style={{ fontSize: 12.5, color: C.blue }}>Campos preenchidos pela leitura. Confira antes de salvar.</p>
             <button onClick={() => setAuto(false)} style={{ color: C.blue }}><X size={14} /></button>
           </div>
@@ -262,11 +258,35 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
         <div className="grid sm:grid-cols-2 gap-4">
           <div><Label>Data</Label><Input type="date" value={f.data} onChange={(e) => set("data", e.target.value)} /></div>
           <div><Label>Casa de aposta</Label>
-            <Select value={f.casaId} onChange={(e) => set("casaId", e.target.value)}>
-              <option value="">Sem casa</option>
-              {casas.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-            </Select>
+            <div className="flex gap-2 items-center">
+              {f.casaId && (
+                <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+                  <IconeCasa casa={casas.find((c) => c.id === f.casaId)} size={24} radius={4} />
+                </div>
+              )}
+              <div className="flex-1">
+                <Select value={f.casaId} onChange={(e) => set("casaId", e.target.value)}>
+                  <option value="">Sem casa</option>
+                  {casas.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                </Select>
+              </div>
+            </div>
           </div>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <span style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: C.muted }}>Nome</span>
+            {f.codigo && <Codigo valor={f.codigo} size={11} />}
+          </div>
+          <Input value={f.nome} onChange={(e) => set("nome", e.target.value)}
+            placeholder={editando ? "" : "Deixe vazio para virar \"Aposta + código\""} />
+          {!editando && !f.nome && (
+            <p className="mt-1.5" style={{ fontSize: 12, color: C.faint }}>
+              Sem nome, ela nasce como <b style={{ color: C.body }}>Aposta + código único</b>, tipo Aposta K3F9.
+            </p>
+          )}
         </div>
 
         <div><Label>Evento</Label>
@@ -282,7 +302,7 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
                 <button key={s.id} type="button" onClick={() => setStake(s.pct)} className="rounded-xl px-3 py-2.5 text-left"
                   style={{ border: `1.5px solid ${on ? C.green : C.line}`, background: on ? C.greenSoft : C.card }}>
                   <p style={{ fontSize: 11, color: on ? C.greenDeep : C.muted, fontWeight: 600 }}>{s.label} · {s.pct}%</p>
-                  <p style={{ fontFamily: F.mono, fontSize: 15, fontWeight: 600, color: on ? C.greenDeep : C.ink }}>{brl(valorStake(s.pct))}</p>
+                  <p className="num" style={{ fontSize: 15, fontWeight: 600, color: on ? C.greenDeep : C.ink }}>{brl(valorStake(s.pct))}</p>
                 </button>
               );
             })}
@@ -313,12 +333,12 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-xl p-4" style={{ background: C.greenSoft, border: `1px solid ${C.greenBand}` }}>
               <p style={{ fontSize: 11, fontWeight: 600, color: C.greenDeep, letterSpacing: ".05em" }}>SE GANHAR</p>
-              <p style={{ fontFamily: F.mono, fontSize: 20, fontWeight: 600, color: C.greenDeep }}>+{brl(ganho)}</p>
+              <p className="num" style={{ fontSize: 20, fontWeight: 700, color: C.greenDeep }}>+{brl(ganho)}</p>
               <p style={{ fontSize: 11.5, color: C.greenDeep, opacity: .7 }}>volta {brl(n(f.valor) * n(f.odd))}</p>
             </div>
             <div className="rounded-xl p-4" style={{ background: C.redSoft, border: `1px solid ${C.redBand}` }}>
               <p style={{ fontSize: 11, fontWeight: 600, color: C.red, letterSpacing: ".05em" }}>SE PERDER</p>
-              <p style={{ fontFamily: F.mono, fontSize: 20, fontWeight: 600, color: C.red }}>{"\u2212"}{brl(n(f.valor))}</p>
+              <p className="num" style={{ fontSize: 20, fontWeight: 700, color: C.red }}>{"\u2212"}{brl(n(f.valor))}</p>
               <p style={{ fontSize: 11.5, color: C.red, opacity: .7 }}>perde a stake</p>
             </div>
           </div>

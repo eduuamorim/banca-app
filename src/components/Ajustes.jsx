@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { Plus, Trash2, Download, LogOut } from "lucide-react";
-import { C, F, Card, Input, Label, Btn } from "@/lib/ui";
+import { C, Card, Input, Label, Btn } from "@/lib/ui";
 import { uid, n, brl, hoje } from "@/lib/calc";
 
 export default function Ajustes({ cfg, salvarCfg, users, bets, casas, me, sair }) {
@@ -19,10 +19,10 @@ export default function Ajustes({ cfg, salvarCfg, users, bets, casas, me, sair }
 
   return (
     <div className="space-y-5">
-      <h1 style={{ fontFamily: F.display, fontSize: 28, fontWeight: 700, letterSpacing: "-0.03em" }}>Ajustes</h1>
+      <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.03em" }}>Ajustes</h1>
 
       <Card>
-        <h2 className="mb-1" style={{ fontFamily: F.display, fontSize: 17, fontWeight: 600 }}>Banca e metas</h2>
+        <h2 className="mb-1" style={{ fontSize: 17, fontWeight: 600 }}>Banca e metas</h2>
         <p className="mb-5" style={{ fontSize: 13, color: C.muted }}>
           Mudar a banca recalcula meta, stop e todos os stakes. Apostas já registradas mantêm o valor original.
         </p>
@@ -33,11 +33,11 @@ export default function Ajustes({ cfg, salvarCfg, users, bets, casas, me, sair }
           </div>
           <div><Label>Meta de lucro %</Label>
             <Input type="number" step="0.01" value={f.metaPct} onChange={(e) => setF({ ...f, metaPct: e.target.value })} />
-            <p className="mt-1.5" style={{ fontFamily: F.mono, fontSize: 12.5, color: C.green }}>+{brl((n(f.banca) * n(f.metaPct)) / 100)}</p>
+            <p className="mt-1.5" style={{ fontSize: 12.5, color: C.green }}>+{brl((n(f.banca) * n(f.metaPct)) / 100)}</p>
           </div>
           <div><Label>Stop loss %</Label>
             <Input type="number" step="0.01" value={f.stopPct} onChange={(e) => setF({ ...f, stopPct: e.target.value })} />
-            <p className="mt-1.5" style={{ fontFamily: F.mono, fontSize: 12.5, color: C.red }}>{"\u2212"}{brl((n(f.banca) * n(f.stopPct)) / 100)}</p>
+            <p className="mt-1.5" style={{ fontSize: 12.5, color: C.red }}>{"\u2212"}{brl((n(f.banca) * n(f.stopPct)) / 100)}</p>
           </div>
         </div>
 
@@ -54,7 +54,7 @@ export default function Ajustes({ cfg, salvarCfg, users, bets, casas, me, sair }
                 <Input value={s.label} onChange={(e) => setF({ ...f, stakes: f.stakes.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)) })} />
                 <Input type="number" step="0.01" value={s.pct} style={{ width: 92 }}
                   onChange={(e) => setF({ ...f, stakes: f.stakes.map((x, j) => (j === i ? { ...x, pct: e.target.value } : x)) })} />
-                <span className="text-right shrink-0" style={{ width: 100, fontFamily: F.mono, fontSize: 13.5, color: C.muted }}>
+                <span className="text-right shrink-0" style={{ width: 100, fontSize: 13.5, color: C.muted }}>
                   {brl((n(f.banca) * n(s.pct)) / 100)}
                 </span>
                 <button disabled={f.stakes.length <= 1} onClick={() => setF({ ...f, stakes: f.stakes.filter((_, j) => j !== i) })}
@@ -75,7 +75,7 @@ export default function Ajustes({ cfg, salvarCfg, users, bets, casas, me, sair }
       </Card>
 
       <Card>
-        <h2 className="mb-1" style={{ fontFamily: F.display, fontSize: 17, fontWeight: 600 }}>Quem usa o app</h2>
+        <h2 className="mb-1" style={{ fontSize: 17, fontWeight: 600 }}>Quem usa o app</h2>
         <p className="mb-5" style={{ fontSize: 13, color: C.muted }}>
           Para adicionar alguém, peça que a pessoa entre no link e clique em Criar conta. Ela aparece aqui sozinha.
         </p>
@@ -104,7 +104,7 @@ export default function Ajustes({ cfg, salvarCfg, users, bets, casas, me, sair }
       </Card>
 
       <Card>
-        <h2 className="mb-1" style={{ fontFamily: F.display, fontSize: 17, fontWeight: 600 }}>Backup</h2>
+        <h2 className="mb-1" style={{ fontSize: 17, fontWeight: 600 }}>Backup</h2>
         <p className="mb-5" style={{ fontSize: 13, color: C.muted }}>
           Seus dados já ficam salvos no banco. Isso aqui é só uma cópia extra para o seu computador.
         </p>

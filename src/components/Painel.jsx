@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import { Check, X, ChevronRight, Receipt } from "lucide-react";
-import { C, F, Card, Label, Input, Empty, Money, Faixa } from "@/lib/ui";
+import { C, Card, Label, Input, Empty, Money, Num, Faixa } from "@/lib/ui";
 import { n, brl, sgn, dBR, hoje, lucro, fechada } from "@/lib/calc";
 import BetRow from "./BetRow";
 
@@ -27,7 +27,7 @@ export default function Painel(p) {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 style={{ fontFamily: F.display, fontSize: 28, fontWeight: 700, letterSpacing: "-0.03em" }}>{hd ? "Hoje" : dBR(dia)}</h1>
+          <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.03em" }}>{hd ? "Hoje" : dBR(dia)}</h1>
           <p style={{ fontSize: 13.5, color: C.muted }}>
             {doDia.length
               ? `${doDia.length} aposta${doDia.length > 1 ? "s" : ""} · ${abertas.length} aberta${abertas.length !== 1 ? "s" : ""}`
@@ -38,7 +38,7 @@ export default function Painel(p) {
       </div>
 
       {aviso && (
-        <div className="flex items-center gap-3 px-5 py-3.5 rounded-2xl" style={{ background: aviso.bg, color: "#fff" }}>
+        <div className="anim-aviso flex items-center gap-3 px-5 py-3.5 rounded-2xl" style={{ background: aviso.bg, color: "#fff" }}>
           {estado === "meta" ? <Check size={18} /> : <X size={18} />}
           <p style={{ fontSize: 14.5, fontWeight: 500 }}>{aviso.txt}</p>
         </div>
@@ -48,13 +48,13 @@ export default function Painel(p) {
         <div className="flex items-start justify-between mb-5">
           <div>
             <Label>Resultado do dia</Label>
-            <p style={{ fontFamily: F.mono, fontSize: 40, fontWeight: 600, letterSpacing: "-0.04em", lineHeight: 1.1, color: lucroDia > 0 ? C.green : lucroDia < 0 ? C.red : C.ink }}>
+            <p className="num" style={{ fontSize: 40, fontWeight: 700, letterSpacing: "-0.035em", lineHeight: 1.1, color: lucroDia > 0 ? C.green : lucroDia < 0 ? C.red : C.ink }}>
               {sgn(lucroDia)}
             </p>
           </div>
           <div className="text-right shrink-0">
             <p style={{ fontSize: 11.5, color: C.muted }}>Green / Red</p>
-            <p style={{ fontFamily: F.mono, fontSize: 16, fontWeight: 600 }}>
+            <p className="num" style={{ fontSize: 16, fontWeight: 600 }}>
               <span style={{ color: C.green }}>{g}</span> <span style={{ color: C.faint }}>/</span> <span style={{ color: C.red }}>{r}</span>
             </p>
           </div>
@@ -72,18 +72,18 @@ export default function Painel(p) {
 
       <div>
         <div className="flex items-baseline justify-between mb-3">
-          <h2 style={{ fontFamily: F.display, fontSize: 17, fontWeight: 600 }}>Stakes disponíveis</h2>
+          <h2 style={{ fontSize: 17, fontWeight: 600 }}>Stakes disponíveis</h2>
           <p style={{ fontSize: 12.5, color: C.muted }}>base {brl(cfg.banca)}</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {cfg.stakes.map((s) => (
             <button key={s.id} onClick={() => setModalAposta({ preStake: s.pct })} className="text-left rounded-2xl p-5"
-              style={{ background: C.card, border: `1px solid ${C.line}` }}>
+              style={{ background: C.card, border: `1px solid ${C.line}`, transition: "border-color .13s ease, transform .13s ease" }}>
               <div className="flex items-center justify-between">
                 <span style={{ fontSize: 13, fontWeight: 500, color: C.body }}>{s.label}</span>
-                <span className="px-2 py-0.5 rounded-md" style={{ fontFamily: F.mono, fontSize: 11, background: C.lineSoft, color: C.muted }}>{s.pct}%</span>
+                <span className="num px-2 py-0.5 rounded-md" style={{ fontSize: 11, background: C.lineSoft, color: C.muted }}>{s.pct}%</span>
               </div>
-              <p className="mt-3" style={{ fontFamily: F.mono, fontSize: 24, fontWeight: 600, letterSpacing: "-0.03em" }}>{brl(valorStake(s.pct))}</p>
+              <p className="num mt-3" style={{ fontSize: 24, fontWeight: 600, letterSpacing: "-0.025em" }}>{brl(valorStake(s.pct))}</p>
               <p className="mt-2 flex items-center gap-1" style={{ fontSize: 12.5, color: C.green }}>Apostar <ChevronRight size={13} /></p>
             </button>
           ))}
@@ -91,7 +91,7 @@ export default function Painel(p) {
       </div>
 
       <div>
-        <h2 className="mb-3" style={{ fontFamily: F.display, fontSize: 17, fontWeight: 600 }}>Apostas de {hd ? "hoje" : dBR(dia)}</h2>
+        <h2 className="mb-3" style={{ fontSize: 17, fontWeight: 600 }}>Apostas de {hd ? "hoje" : dBR(dia)}</h2>
         <Card pad={false}>
           {doDia.length === 0
             ? <Empty icon={Receipt} title="Dia limpo" hint="Registre uma aposta escolhendo um stake acima." />

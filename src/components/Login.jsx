@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import { Gauge } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { C, F, Input, Label, Btn } from "@/lib/ui";
+import { C, Input, Label, Btn } from "@/lib/ui";
 
 export default function Login() {
   const [modo, setModo] = useState("entrar");
@@ -46,17 +46,17 @@ export default function Login() {
   const valido = email.includes("@") && senha.length >= 6 && (modo === "entrar" || nome.trim());
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-5" style={{ background: C.nav, fontFamily: F.body }}>
+    <div className="min-h-screen flex items-center justify-center p-5" style={{ background: C.nav }}>
       <div className="w-full max-w-sm">
         <div className="flex items-center gap-2.5 justify-center mb-8">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: C.green }}>
             <Gauge size={19} color="#fff" />
           </div>
-          <span style={{ fontFamily: F.display, fontSize: 19, fontWeight: 700, color: "#fff" }}>Gestão de Banca</span>
+          <span style={{ fontSize: 19, fontWeight: 700, color: "#fff" }}>Gestão de Banca</span>
         </div>
 
         <div className="rounded-2xl p-6" style={{ background: C.card }}>
-          <h2 style={{ fontFamily: F.display, fontSize: 21, fontWeight: 600, color: C.ink }}>
+          <h2 style={{ fontSize: 21, fontWeight: 600, color: C.ink }}>
             {modo === "entrar" ? "Entrar" : "Criar conta"}
           </h2>
           <p className="mt-1 mb-5" style={{ fontSize: 13.5, color: C.muted }}>

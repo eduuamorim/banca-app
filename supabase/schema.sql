@@ -61,8 +61,92 @@ create table if not exists public.apostas (
   constraint status_valido check (status in ('aberta','green','red','void','cashout'))
 );
 
+-- Colunas novas. O "if not exists" deixa rodar de novo sem erro,
+-- mesmo se você já tinha criado a tabela antes.
+alter table public.apostas add column if not exists codigo text;
+alter table public.apostas add column if not exists nome text not null default '';
+alter table public.casas   add column if not exists icone text not null default '';
+
 create index if not exists apostas_data_idx on public.apostas (data desc);
 create index if not exists apostas_usuario_idx on public.apostas (usuario_id);
+
+-- ══════════════════════════════════════════════════════════
+--  CÓDIGO CURTO ÚNICO DE CADA APOSTA
+--
+--  Gera algo como K3F9. Sem as letras I, O e os números
+--  0 e 1, que se confundem na leitura. Se sortear um código
+--  repetido, tenta de novo.
+-- ══════════════════════════════════════════════════════════
+
+create or replace function public.gerar_codigo()
+returns text
+language plpgsql
+as $$
+declare
+  alfabeto text := 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  tentativa text;
+  i int;
+  n int;
+begin
+  for n in 1..40 loop
+    tentativa := '';
+    for i in 1..4 loop
+      tentativa := tentativa || substr(alfabeto, floor(random() * length(alfabeto))::int + 1, 1);
+    end loop;
+    if not exists (select 1 from public.apostas where codigo = tentativa) then
+      return tentativa;
+    end if;
+  end loop;
+  -- praticamente impossível chegar aqui: 32^4 = 1.048.576 combinações
+  return tentativa || floor(random() * 90 + 10)::text;
+end;
+$$;
+
+-- Preenche o código de quem já existia sem ele.
+--
+-- Precisa ser em laço, uma linha por vez. Um UPDATE único chamaria
+-- gerar_codigo() para todas as linhas antes de gravar qualquer uma,
+-- e a checagem de duplicata não enxergaria os códigos recém-sorteados.
+-- Duas linhas poderiam receber o mesmo código, e o índice único abaixo
+-- quebraria.
+do $$
+declare
+  r record;
+begin
+  for r in select id from public.apostas where codigo is null loop
+    update public.apostas set codigo = public.gerar_codigo() where id = r.id;
+  end loop;
+end
+$$;
+
+-- Nome padrão para quem já existia sem ele
+update public.apostas
+   set nome = 'Aposta ' || codigo
+ where nome = '' and codigo is not null;
+
+-- E de agora em diante, todo insert ganha um código sozinho
+create or replace function public.antes_de_inserir_aposta()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.codigo is null or new.codigo = '' then
+    new.codigo := public.gerar_codigo();
+  end if;
+  if new.nome is null or new.nome = '' then
+    new.nome := 'Aposta ' || new.codigo;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists ao_inserir_aposta on public.apostas;
+create trigger ao_inserir_aposta
+  before insert on public.apostas
+  for each row execute function public.antes_de_inserir_aposta();
+
+-- Garante que dois códigos nunca se repitam
+create unique index if not exists apostas_codigo_idx on public.apostas (codigo);
 
 -- ══════════════════════════════════════════════════════════
 --  CRIAÇÃO AUTOMÁTICA DO PERFIL AO CADASTRAR
@@ -147,6 +231,21 @@ create policy ap_excluir on public.apostas
 -- ══════════════════════════════════════════════════════════
 --  ATUALIZAÇÃO EM TEMPO REAL
 --  Faz a aposta que um cadastra aparecer na tela do outro.
+--
+--  O bloco abaixo só adiciona a tabela se ela ainda não
+--  estiver lá. Assim você pode rodar este arquivo quantas
+--  vezes quiser, sem erro.
 -- ══════════════════════════════════════════════════════════
 
-alter publication supabase_realtime add table public.apostas;
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'apostas'
+  ) then
+    alter publication supabase_realtime add table public.apostas;
+  end if;
+end
+$$;

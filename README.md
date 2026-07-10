@@ -27,6 +27,18 @@ Não pule passos. Não faça fora de ordem. Se travar, vá até o final do guia,
 
 ---
 
+## Já tem o app rodando? Leia isto
+
+Se você **já publicou** e está só atualizando, faça duas coisas:
+
+**1. Rode o `schema.sql` de novo.** Ele adiciona as colunas novas (código curto, nome da aposta, ícone da casa) sem apagar nada. Suas apostas antigas ganham um código automaticamente.
+
+**2. Suba os arquivos novos no GitHub.** A Vercel republica sozinha.
+
+O SQL pode rodar quantas vezes você quiser. Nada se perde.
+
+---
+
 ## O que você vai ter no final
 
 - Um site no ar, endereço tipo `banca-app.vercel.app`, que abre no celular e no computador
@@ -120,7 +132,7 @@ Agora vamos criar as tabelas onde as apostas ficam guardadas.
 
 **8.** Volte para a aba do Supabase. Clique dentro da caixa branca e aperte **`Ctrl + V`**.
 
-**9.** Confira: o texto tem que começar com `-- ═══` e terminar com `alter publication supabase_realtime add table public.apostas;`
+**9.** Confira: o texto tem que começar com `-- ═══` e terminar com `$$;`
 
 Se não terminar assim, você copiou pela metade. Apague tudo e refaça do passo 7.
 
@@ -133,6 +145,20 @@ Se não terminar assim, você copiou pela metade. Apague tudo e refaça do passo
 ❌ **Deu errado se aparecer texto vermelho.** Volte ao passo 7 e copie o arquivo inteiro.
 
 > Rodar esse SQL duas vezes não causa problema nenhum. Se ficou na dúvida, rode de novo.
+
+## 1.3.1 — Confirmar que as tabelas nasceram
+
+**1.** No menu da esquerda, clique em **Table Editor** (ícone de tabela)
+
+**2.** Você tem que ver **quatro** tabelas:
+- `apostas`
+- `casas`
+- `config`
+- `profiles`
+
+**3.** Clique em **config**. Tem que ter **uma linha**, com `banca` valendo `4800`
+
+Se está tudo lá, o banco está pronto. Siga em frente.
 
 ## 1.4 — Desligar a confirmação de e-mail
 
@@ -552,6 +578,22 @@ Você pode colar o link de compartilhar do bilhete e clicar em **Ler**.
 
 ⚠️ **Isso falha na maioria das casas.** Bet365, Betano e Superbet montam a página por JavaScript e bloqueiam robôs. Quando falha, o app te avisa e você usa o print. **Não é defeito do app.**
 
+## O código de cada aposta
+
+Toda aposta ganha um código curto e único, tipo **K3F9**. Quatro caracteres, sem as letras `I` e `O` nem os números `0` e `1`, que se confundem na leitura.
+
+Ele aparece do lado do nome. **Clique nele para copiar.**
+
+Serve para você falar da aposta com a outra pessoa sem descrever o jogo inteiro: *"a K3F9 deu green"*. E serve para achar na busca.
+
+## O nome da aposta
+
+Se o print for lido, o nome sai do confronto: **Flamengo x Palmeiras**.
+
+Se não for lido, ou se você deixar o campo vazio, ela nasce como **Aposta K3F9** — o código dela.
+
+Você pode trocar o nome quando quiser, editando a aposta.
+
 ## Resolver uma aposta
 
 **1.** Vá no **Painel** ou em **Apostas**
@@ -567,7 +609,31 @@ Você pode colar o link de compartilhar do bilhete e clicar em **Ler**.
 | **Anulada** | jogo adiado, aposta devolvida, resultado zero |
 | **Cashout** | você encerrou antes. Ele pergunta quanto você recebeu. |
 
+**4.** Aparece uma confirmação mostrando **quanto aquilo muda no dia**, em reais, antes de você confirmar.
+
+No cashout, você digita o valor recebido e vê o resultado calculado na hora, antes de salvar.
+
 Enquanto a aposta está **Aberta**, ela **não entra em nenhum cálculo**.
+
+## Buscar e filtrar
+
+Na aba **Apostas**:
+
+- **Barra de busca** — procura por código, nome, evento, observação ou nome da casa
+- **Atalhos** — Tudo · Hoje · 7 dias · 30 dias
+- **Mais filtros** — usuário, status, casa, intervalo de datas, faixa de odd, faixa de valor
+
+O número verde no botão **Mais filtros** mostra quantos estão ativos. **Limpar** apaga todos de uma vez.
+
+Os totais embaixo (investido, resultado, ROI) sempre refletem **o que está filtrado**, não a banca inteira.
+
+## O ícone da casa
+
+Ao cadastrar uma casa com link, o app puxa o ícone do site sozinho.
+
+Ele aparece na lista de casas, na linha de cada aposta e no formulário. Se o site não tiver ícone, mostra a inicial do nome.
+
+Quer usar outra imagem? No modal da casa, clique em **Trocar** e cole o endereço da imagem.
 
 ## Ler o Painel
 
@@ -669,6 +735,28 @@ Clique em **Não tem conta? Criar agora**.
 Você pulou o passo **1.4**. Volte lá e desligue **Confirm email**.
 
 Depois disso, tente entrar de novo. Não precisa refazer nada.
+
+## Erro no SQL: "already member of publication"
+
+A mensagem completa é assim:
+
+```
+ERROR: 42710: relation "apostas" is already member of publication "supabase_realtime"
+```
+
+**Não é problema.** Você rodou o SQL duas vezes. Na primeira vez deu certo, e na segunda o banco reclamou que a tabela já estava registrada.
+
+**Tudo que vem antes dessa linha já rodou.** As tabelas existem.
+
+**O que fazer:** confira no **Table Editor** se as quatro tabelas estão lá (`apostas`, `casas`, `config`, `profiles`). Se estiverem, ignore o erro e siga para o passo 1.4.
+
+> A versão nova do `schema.sql` já corrige isso. Pode rodar quantas vezes quiser.
+
+## Outros erros vermelhos no SQL
+
+Se aparecer qualquer coisa **diferente** de `already exists` ou `already member of`, você provavelmente copiou o arquivo pela metade.
+
+Apague tudo da caixa, abra o `schema.sql` de novo, `Ctrl + A`, `Ctrl + C`, cole e rode de novo.
 
 ## A aposta não salva
 

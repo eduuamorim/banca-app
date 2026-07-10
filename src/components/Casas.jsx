@@ -1,13 +1,14 @@
 "use client";
-import React, { useState } from "react";
-import { Plus, Building2, Lock, ChevronDown, ExternalLink, Eye, EyeOff, Copy, Pencil, Trash2 } from "lucide-react";
-import { C, F, Card, Input, Label, Btn, Modal, Empty } from "@/lib/ui";
-import { uid } from "@/lib/calc";
+import React, { useState, useEffect } from "react";
+import { Plus, Building2, Lock, ChevronDown, ExternalLink, Eye, EyeOff, Copy, Pencil, Trash2, Globe } from "lucide-react";
+import { C, Card, Input, Label, Btn, Modal, Empty, Confirmar, Aviso, IconeCasa } from "@/lib/ui";
+import { uid, faviconDe, dominio } from "@/lib/calc";
 
 export default function Casas({ casas, bets, salvarCasa, excluirCasa, flash }) {
   const [modal, setModal] = useState(null);
   const [ver, setVer] = useState({});
   const [aberto, setAberto] = useState({});
+  const [excluindo, setExcluindo] = useState(null);
 
   const copiar = (t, l) => {
     const ta = document.createElement("textarea");
@@ -23,23 +24,22 @@ export default function Casas({ casas, bets, salvarCasa, excluirCasa, flash }) {
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 style={{ fontFamily: F.display, fontSize: 28, fontWeight: 700, letterSpacing: "-0.03em" }}>Casas</h1>
-          <p style={{ fontSize: 13.5, color: C.muted }}>Link, login e senha de cada casa.</p>
+          <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.03em" }}>Casas</h1>
+          <p style={{ fontSize: 13.5, color: C.muted }}>Link, ícone, login e senha de cada casa.</p>
         </div>
-        <Btn kind="green" onClick={() => setModal({ id: uid(), nome: "", url: "", login: "", senha: "", obs: "", nova: true })}>
+        <Btn kind="green" onClick={() => setModal({ id: uid(), nome: "", url: "", icone: "", login: "", senha: "", obs: "", nova: true })}>
           <Plus size={17} /> Nova
         </Btn>
       </div>
 
-      <div className="rounded-xl px-4 py-3 flex gap-2.5" style={{ background: C.amberSoft, border: `1px solid ${C.amberBand}` }}>
-        <Lock size={15} style={{ color: C.amber, marginTop: 2 }} className="shrink-0" />
-        <p style={{ fontSize: 12.5, color: "#8A6212" }}>
-          As senhas ficam salvas em texto simples. Qualquer pessoa com conta neste app consegue ver.
-        </p>
-      </div>
+      <Aviso icone={Lock}>
+        As senhas ficam salvas em texto simples. Qualquer pessoa com conta neste app consegue ver.
+      </Aviso>
 
       {casas.length === 0 ? (
-        <Card pad={false}><Empty icon={Building2} title="Nenhuma casa cadastrada" hint="Cadastre para vincular apostas e guardar o acesso." /></Card>
+        <Card pad={false}>
+          <Empty icon={Building2} title="Nenhuma casa cadastrada" hint="Cadastre para vincular apostas e guardar o acesso." />
+        </Card>
       ) : (
         <div className="space-y-3">
           {casas.map((c) => {
@@ -48,28 +48,31 @@ export default function Casas({ casas, bets, salvarCasa, excluirCasa, flash }) {
             return (
               <Card key={c.id} pad={false}>
                 <div className="flex items-center gap-3 px-5 py-4">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                    style={{ background: C.lineSoft, fontFamily: F.display, fontWeight: 700, color: C.body }}>
-                    {c.nome[0]?.toUpperCase()}
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 overflow-hidden"
+                    style={{ background: C.lineSoft, border: `1px solid ${C.line}` }}>
+                    <IconeCasa casa={c} size={26} radius={5} />
                   </div>
                   <div className="min-w-0 flex-1">
                     <p style={{ fontSize: 15, fontWeight: 600 }}>{c.nome}</p>
-                    <p style={{ fontSize: 12.5, color: C.muted }}>{qtd} aposta{qtd !== 1 ? "s" : ""}</p>
+                    <p className="num" style={{ fontSize: 12.5, color: C.muted }}>
+                      {qtd} aposta{qtd !== 1 ? "s" : ""}{c.url ? ` · ${dominio(c.url)}` : ""}
+                    </p>
                   </div>
                   {c.url && (
                     <a href={c.url} target="_blank" rel="noreferrer" className="p-2 rounded-lg shrink-0" style={{ color: C.blue }}>
                       <ExternalLink size={16} />
                     </a>
                   )}
-                  <button onClick={() => setAberto({ ...aberto, [c.id]: !op })} className="px-3 py-2 rounded-lg flex items-center gap-1.5 shrink-0"
-                    style={{ background: C.lineSoft, fontSize: 12.5, color: C.body }}>
+                  <button onClick={() => setAberto({ ...aberto, [c.id]: !op })}
+                    className="px-3 py-2 rounded-lg flex items-center gap-1.5 shrink-0"
+                    style={{ background: C.lineSoft, fontSize: 12.5, color: C.body, transition: "background .13s" }}>
                     <Lock size={13} /> Acesso
-                    <ChevronDown size={13} style={{ transform: op ? "rotate(180deg)" : "", transition: ".15s" }} />
+                    <ChevronDown size={13} style={{ transform: op ? "rotate(180deg)" : "", transition: "transform .16s ease" }} />
                   </button>
                 </div>
 
                 {op && (
-                  <div className="px-5 pb-5 space-y-3" style={{ borderTop: `1px solid ${C.lineSoft}` }}>
+                  <div className="anim-detalhe px-5 pb-5 space-y-3" style={{ borderTop: `1px solid ${C.lineSoft}` }}>
                     <div className="grid sm:grid-cols-2 gap-3 pt-4">
                       <div>
                         <Label>Login</Label>
@@ -82,8 +85,9 @@ export default function Casas({ casas, bets, salvarCasa, excluirCasa, flash }) {
                         <Label>Senha</Label>
                         <div className="flex gap-2">
                           <div className="relative flex-1">
-                            <Input readOnly type={ver[c.id] ? "text" : "password"} value={c.senha} style={{ paddingRight: 40, fontFamily: F.mono }} />
-                            <button onClick={() => setVer({ ...ver, [c.id]: !ver[c.id] })} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: C.faint }}>
+                            <Input readOnly numerico type={ver[c.id] ? "text" : "password"} value={c.senha} style={{ paddingRight: 40 }} />
+                            <button onClick={() => setVer({ ...ver, [c.id]: !ver[c.id] })}
+                              className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: C.faint }}>
                               {ver[c.id] ? <EyeOff size={16} /> : <Eye size={16} />}
                             </button>
                           </div>
@@ -94,11 +98,9 @@ export default function Casas({ casas, bets, salvarCasa, excluirCasa, flash }) {
                     {c.obs && <p style={{ fontSize: 12.5, color: C.muted }}>{c.obs}</p>}
                     <div className="flex gap-2">
                       <Btn size="sm" kind="ghost" onClick={() => setModal({ ...c })}><Pencil size={14} /> Editar</Btn>
-                      <Btn size="sm" kind="ghost" style={{ color: C.red }} onClick={() => {
-                        if (qtd && !confirm(`${qtd} aposta(s) usam esta casa. Elas ficam sem casa. Continuar?`)) return;
-                        if (!qtd && !confirm("Excluir esta casa?")) return;
-                        excluirCasa(c.id);
-                      }}><Trash2 size={14} /> Excluir</Btn>
+                      <Btn size="sm" kind="ghost" style={{ color: C.red }} onClick={() => setExcluindo({ ...c, qtd })}>
+                        <Trash2 size={14} /> Excluir
+                      </Btn>
                     </div>
                   </div>
                 )}
@@ -108,23 +110,105 @@ export default function Casas({ casas, bets, salvarCasa, excluirCasa, flash }) {
         </div>
       )}
 
-      {modal && (
-        <Modal onClose={() => setModal(null)} title={modal.nova ? "Nova casa" : "Editar casa"}>
-          <div className="space-y-4">
-            <div><Label>Nome</Label><Input value={modal.nome} onChange={(e) => setModal({ ...modal, nome: e.target.value })} placeholder="Bet365" autoFocus /></div>
-            <div><Label>Link do site</Label><Input value={modal.url} onChange={(e) => setModal({ ...modal, url: e.target.value })} placeholder="https://" /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Login</Label><Input value={modal.login} onChange={(e) => setModal({ ...modal, login: e.target.value })} /></div>
-              <div><Label>Senha</Label><Input value={modal.senha} onChange={(e) => setModal({ ...modal, senha: e.target.value })} /></div>
+      {modal && <CasaModal modal={modal} setModal={setModal} salvarCasa={salvarCasa} />}
+
+      {excluindo && (
+        <Confirmar
+          titulo="Excluir esta casa?"
+          mensagem={excluindo.qtd
+            ? `${excluindo.qtd} aposta${excluindo.qtd > 1 ? "s" : ""} usa${excluindo.qtd > 1 ? "m" : ""} esta casa. Elas continuam existindo, mas ficam sem casa.`
+            : "Não dá para desfazer."}
+          tom="red"
+          rotuloOk="Excluir"
+          onCancelar={() => setExcluindo(null)}
+          onOk={() => { excluirCasa(excluindo.id); setExcluindo(null); }}
+          detalhe={
+            <div className="flex items-center gap-2.5">
+              <IconeCasa casa={excluindo} size={20} />
+              <p style={{ fontSize: 13.5, fontWeight: 500, color: C.ink }}>{excluindo.nome}</p>
             </div>
-            <div><Label>Observação</Label><Input value={modal.obs} onChange={(e) => setModal({ ...modal, obs: e.target.value })} placeholder="Chave PIX, conta..." /></div>
-            <div className="flex justify-end gap-2 pt-1">
-              <Btn kind="outline" onClick={() => setModal(null)}>Cancelar</Btn>
-              <Btn kind="green" disabled={!modal.nome.trim()} onClick={() => { salvarCasa(modal); setModal(null); }}>Salvar</Btn>
-            </div>
-          </div>
-        </Modal>
+          }
+        />
       )}
     </div>
+  );
+}
+
+/* ── modal de cadastro, com ícone automático ── */
+
+function CasaModal({ modal, setModal, salvarCasa }) {
+  const [f, setF] = useState(modal);
+  const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
+
+  // Ao digitar o link, o ícone se atualiza sozinho.
+  // Se você mexer no ícone à mão, o app respeita e para de sobrescrever.
+  const [manual, setManual] = useState(!!modal.icone && !modal.nova);
+
+  useEffect(() => {
+    if (manual) return;
+    const auto = faviconDe(f.url);
+    if (auto !== f.icone) set("icone", auto);
+  }, [f.url, manual]);
+
+  const d = dominio(f.url);
+
+  return (
+    <Modal onClose={() => setModal(null)} title={f.nova ? "Nova casa" : "Editar casa"}>
+      <div className="space-y-4">
+        <div><Label>Nome</Label>
+          <Input value={f.nome} onChange={(e) => set("nome", e.target.value)} placeholder="Bet365" autoFocus />
+        </div>
+
+        <div><Label>Link do site</Label>
+          <Input value={f.url} onChange={(e) => set("url", e.target.value)} placeholder="https://www.bet365.com" />
+          {d && <p className="mt-1.5" style={{ fontSize: 12, color: C.faint }}>O ícone vem de {d}</p>}
+        </div>
+
+        {/* prévia do ícone */}
+        <div className="flex items-center gap-3 rounded-xl px-4 py-3" style={{ background: "#FBFBF9", border: `1px solid ${C.line}` }}>
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
+            <IconeCasa casa={f} size={28} radius={5} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p style={{ fontSize: 12, fontWeight: 600, color: C.body }}>Ícone da casa</p>
+            <p style={{ fontSize: 12, color: C.faint }}>
+              {f.icone ? (manual ? "Endereço definido por você" : "Puxado do site automaticamente") : "Sem link, mostra a inicial do nome"}
+            </p>
+          </div>
+          {f.icone && !manual && (
+            <button onClick={() => setManual(true)} className="shrink-0 px-2.5 py-1.5 rounded-lg"
+              style={{ fontSize: 11.5, color: C.body, border: `1px solid ${C.line}`, background: "#fff" }}>
+              Trocar
+            </button>
+          )}
+        </div>
+
+        {manual && (
+          <div><Label>Endereço da imagem</Label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Globe size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: C.faint }} />
+                <Input value={f.icone} onChange={(e) => set("icone", e.target.value)} placeholder="https://.../logo.png" style={{ paddingLeft: 38 }} />
+              </div>
+              <Btn kind="outline" onClick={() => { setManual(false); set("icone", faviconDe(f.url)); }}>Automático</Btn>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-3">
+          <div><Label>Login</Label><Input value={f.login} onChange={(e) => set("login", e.target.value)} /></div>
+          <div><Label>Senha</Label><Input value={f.senha} onChange={(e) => set("senha", e.target.value)} /></div>
+        </div>
+
+        <div><Label>Observação</Label>
+          <Input value={f.obs} onChange={(e) => set("obs", e.target.value)} placeholder="Chave PIX, conta..." />
+        </div>
+
+        <div className="flex justify-end gap-2 pt-1">
+          <Btn kind="outline" onClick={() => setModal(null)}>Cancelar</Btn>
+          <Btn kind="green" disabled={!f.nome.trim()} onClick={() => { salvarCasa(f); setModal(null); }}>Salvar</Btn>
+        </div>
+      </div>
+    </Modal>
   );
 }

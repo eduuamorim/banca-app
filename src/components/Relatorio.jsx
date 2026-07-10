@@ -1,7 +1,7 @@
 "use client";
 import React, { useMemo } from "react";
 import { PieChart } from "lucide-react";
-import { C, F, Card, Empty, Big, Tabela } from "@/lib/ui";
+import { C, Card, Empty, Big, Tabela } from "@/lib/ui";
 import { n, brl, sgn, lucro, fechada } from "@/lib/calc";
 
 export default function Relatorio({ bets, users, casas, cfg, meta, stop, lucroTotal }) {
@@ -30,7 +30,7 @@ export default function Relatorio({ bets, users, casas, cfg, meta, stop, lucroTo
 
   return (
     <div className="space-y-5">
-      <h1 style={{ fontFamily: F.display, fontSize: 28, fontWeight: 700, letterSpacing: "-0.03em" }}>Relatório</h1>
+      <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.03em" }}>Relatório</h1>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <Big k="Lucro total" v={sgn(geral.luc)} cor={geral.luc >= 0 ? C.green : C.red} sub={`${((lucroTotal / cfg.banca) * 100).toFixed(2)}% da banca`} />
@@ -40,14 +40,14 @@ export default function Relatorio({ bets, users, casas, cfg, meta, stop, lucroTo
       </div>
 
       <Card>
-        <h2 className="mb-5" style={{ fontFamily: F.display, fontSize: 17, fontWeight: 600 }}>Resultado por dia</h2>
+        <h2 className="mb-5" style={{ fontSize: 17, fontWeight: 600 }}>Resultado por dia</h2>
         <div className="space-y-2.5">
           {dias.slice(0, 20).map((d) => {
             const pos = d.luc >= 0;
             const w = (Math.abs(d.luc) / maxAbs) * 50;
             return (
               <div key={d.d} className="flex items-center gap-3">
-                <span className="shrink-0" style={{ fontFamily: F.mono, fontSize: 11.5, color: C.muted, width: 44 }}>
+                <span className="num shrink-0" style={{ fontSize: 11.5, color: C.muted, width: 44 }}>
                   {d.d.slice(8)}/{d.d.slice(5, 7)}
                 </span>
                 <div className="flex-1 relative" style={{ height: 24 }}>
@@ -57,7 +57,7 @@ export default function Relatorio({ bets, users, casas, cfg, meta, stop, lucroTo
                     background: d.luc >= meta ? C.green : d.luc <= -stop ? C.red : pos ? C.greenBand : C.redBand,
                   }} />
                 </div>
-                <span className="shrink-0 text-right" style={{ fontFamily: F.mono, fontSize: 12.5, fontWeight: 500, color: pos ? C.green : C.red, width: 92 }}>
+                <span className="num shrink-0 text-right" style={{ fontSize: 12.5, fontWeight: 600, color: pos ? C.green : C.red, width: 92 }}>
                   {sgn(d.luc)}
                 </span>
               </div>
@@ -67,7 +67,7 @@ export default function Relatorio({ bets, users, casas, cfg, meta, stop, lucroTo
       </Card>
 
       <Card pad={false}>
-        <div className="px-6 pt-5 pb-3"><h2 style={{ fontFamily: F.display, fontSize: 17, fontWeight: 600 }}>Por usuário</h2></div>
+        <div className="px-6 pt-5 pb-3"><h2 style={{ fontSize: 17, fontWeight: 600 }}>Por usuário</h2></div>
         <Tabela cols={["Usuário", "Apostas", "G/R", "Acerto", "Investido", "Lucro", "ROI"]}
           rows={users.filter((u) => res.some((b) => b.usuarioId === u.id)).map((u) => {
             const s = calc(res.filter((b) => b.usuarioId === u.id));
@@ -86,7 +86,7 @@ export default function Relatorio({ bets, users, casas, cfg, meta, stop, lucroTo
       </Card>
 
       <Card pad={false}>
-        <div className="px-6 pt-5 pb-3"><h2 style={{ fontFamily: F.display, fontSize: 17, fontWeight: 600 }}>Por casa</h2></div>
+        <div className="px-6 pt-5 pb-3"><h2 style={{ fontSize: 17, fontWeight: 600 }}>Por casa</h2></div>
         <Tabela cols={["Casa", "Apostas", "G/R", "Acerto", "Investido", "Lucro", "ROI"]}
           rows={[...casas, { id: null, nome: "Sem casa" }]
             .filter((c) => res.some((b) => (b.casaId || null) === c.id))

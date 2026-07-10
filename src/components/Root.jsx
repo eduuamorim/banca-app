@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Gauge, Receipt, PieChart, Building2, Settings, Plus, Check, LogOut } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { C, F } from "@/lib/ui";
+import { C } from "@/lib/ui";
 import { hoje, brl, sgn, lucro, fechada, betFromRow, betToRow, cfgFromRow, cfgToRow, n } from "@/lib/calc";
 
 import Login from "./Login";
@@ -109,7 +109,7 @@ export default function Root() {
 
   const salvarCasa = async (c) => {
     const existe = casas.some((x) => x.id === c.id);
-    const linha = { nome: c.nome, url: c.url, login: c.login, senha: c.senha, obs: c.obs };
+    const linha = { nome: c.nome, url: c.url, icone: c.icone || "", login: c.login, senha: c.senha, obs: c.obs };
     const { error } = existe
       ? await supabase.from("casas").update(linha).eq("id", c.id)
       : await supabase.from("casas").insert(linha);
@@ -155,19 +155,19 @@ export default function Root() {
   };
 
   return (
-    <div className="min-h-screen flex" style={{ background: C.bg, fontFamily: F.body, color: C.ink }}>
+    <div className="min-h-screen flex" style={{ background: C.bg, color: C.ink }}>
       {/* ── barra lateral ── */}
       <aside className="hidden lg:flex flex-col w-60 shrink-0 sticky top-0 h-screen" style={{ background: C.nav }}>
         <div className="px-5 py-6 flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: C.green }}><Gauge size={17} color="#fff" /></div>
-          <span style={{ fontFamily: F.display, fontSize: 16.5, fontWeight: 700, color: "#fff", letterSpacing: "-0.02em" }}>Banca</span>
+          <span style={{ fontSize: 16.5, fontWeight: 700, color: "#fff", letterSpacing: "-0.02em" }}>Banca</span>
         </div>
 
         <div className="px-4 pb-5">
           <div className="rounded-xl px-4 py-3.5" style={{ background: C.navSoft }}>
             <p style={{ fontSize: 10.5, letterSpacing: ".07em", color: "#7E9298", fontWeight: 600 }}>SALDO ATUAL</p>
-            <p className="mt-1" style={{ fontFamily: F.mono, fontSize: 21, fontWeight: 600, color: "#fff", letterSpacing: "-0.03em" }}>{brl(cfg.banca + lucroTotal)}</p>
-            <p className="mt-0.5" style={{ fontFamily: F.mono, fontSize: 11.5, color: lucroTotal >= 0 ? "#5BC79B" : "#E58A8A" }}>{sgn(lucroTotal)} acumulado</p>
+            <p className="mt-1" className="num" style={{ fontSize: 21, fontWeight: 600, color: "#fff", letterSpacing: "-0.02em" }}>{brl(cfg.banca + lucroTotal)}</p>
+            <p className="mt-0.5" className="num" style={{ fontSize: 11.5, color: lucroTotal >= 0 ? "#5BC79B" : "#E58A8A" }}>{sgn(lucroTotal)} acumulado</p>
           </div>
         </div>
 
@@ -204,7 +204,7 @@ export default function Root() {
         <header className="lg:hidden sticky top-0 z-30 px-4 py-3 flex items-center justify-between" style={{ background: C.nav }}>
           <div>
             <p style={{ fontSize: 10, letterSpacing: ".07em", color: "#7E9298", fontWeight: 600 }}>SALDO ATUAL</p>
-            <p style={{ fontFamily: F.mono, fontSize: 18, fontWeight: 600, color: "#fff" }}>{brl(cfg.banca + lucroTotal)}</p>
+            <p className="num" style={{ fontSize: 18, fontWeight: 600, color: "#fff" }}>{brl(cfg.banca + lucroTotal)}</p>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => setModalAposta(true)} className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: C.green }}><Plus size={18} color="#fff" /></button>
@@ -243,7 +243,7 @@ export default function Root() {
       )}
 
       {toast && (
-        <div className="fixed z-50 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-3 rounded-xl"
+        <div className="anim-aviso fixed z-50 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-3 rounded-xl"
           style={{ bottom: 88, background: C.ink, color: "#fff", fontSize: 13.5 }}>
           <Check size={15} style={{ color: "#5BC79B" }} />{toast}
         </div>

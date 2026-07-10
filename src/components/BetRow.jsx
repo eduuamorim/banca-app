@@ -1,81 +1,226 @@
 "use client";
 import React, { useState } from "react";
 import { ChevronDown, ExternalLink, Pencil, Trash2 } from "lucide-react";
-import { C, F, Pill, Btn, Money, Info } from "@/lib/ui";
-import { n, brl, lucro, fechada } from "@/lib/calc";
+import { C, Pill, Btn, Num, Money, Info, Codigo, IconeCasa, Confirmar, Input, Label } from "@/lib/ui";
+import { n, brl, sgn, lucro, fechada, nomePadrao } from "@/lib/calc";
+
+/* Cada resolução mostra a consequência em reais ANTES de confirmar. */
+const ACOES = {
+  green: {
+    rotulo: "Ganhou", botao: "green", tom: "green",
+    titulo: "Marcar como Green?",
+    valor: (b) => n(b.valor) * (n(b.odd) - 1),
+    frase: "Vai entrar como lucro no dia.",
+  },
+  red: {
+    rotulo: "Perdeu", botao: "red", tom: "red",
+    titulo: "Marcar como Red?",
+    valor: (b) => -n(b.valor),
+    frase: "Vai entrar como prejuízo no dia.",
+  },
+  void: {
+    rotulo: "Anulada", botao: "outline", tom: "amber",
+    titulo: "Marcar como Anulada?",
+    valor: () => 0,
+    frase: "A stake volta inteira. Não mexe no resultado do dia.",
+  },
+  cashout: {
+    rotulo: "Cashout", botao: "outline", tom: "blue",
+    titulo: "Encerrar por cashout",
+    valor: null,
+    frase: "Digite quanto você recebeu ao encerrar.",
+  },
+  aberta: {
+    rotulo: "Reabrir", botao: "ghost", tom: "amber",
+    titulo: "Reabrir esta aposta?",
+    valor: () => 0,
+    frase: "Ela sai do cálculo do dia até você resolver de novo.",
+  },
+};
 
 export default function BetRow({ b, casas, users, first, setModalAposta, mudarStatus, excluirAposta }) {
   const [open, setOpen] = useState(false);
+  const [confirmar, setConfirmar] = useState(null);   // chave de ACOES
+  const [cashout, setCashout] = useState("");
+  const [excluindo, setExcluindo] = useState(false);
+
   const casa = casas.find((c) => c.id === b.casaId);
   const u = users.find((x) => x.id === b.usuarioId);
   const l = lucro(b);
   const previsto = n(b.valor) * (n(b.odd) - 1);
+  const titulo = b.nome || nomePadrao(b.codigo);
 
-  const resolver = (status) => {
-    if (status === "cashout") {
-      const v = prompt("Quanto você recebeu no cashout? (só números)");
-      if (v === null) return;
-      return mudarStatus(b, "cashout", v);
-    }
-    mudarStatus(b, status);
+  const pedir = (chave) => {
+    if (chave === "cashout") setCashout(String(n(b.valor).toFixed(2)));
+    setConfirmar(chave);
   };
 
-  const excluir = () => { if (confirm("Excluir esta aposta?")) excluirAposta(b.id); };
+  const aplicar = () => {
+    if (confirmar === "cashout") mudarStatus(b, "cashout", cashout);
+    else mudarStatus(b, confirmar);
+    setConfirmar(null);
+  };
+
+  const a = confirmar ? ACOES[confirmar] : null;
+  const resultadoCashout = n(cashout) - n(b.valor);
 
   return (
-    <div style={{ borderTop: first ? "none" : `1px solid ${C.lineSoft}` }}>
-      <div className="flex items-center gap-3 px-5 py-4 cursor-pointer" onClick={() => setOpen(!open)}>
-        <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-          style={{ background: u?.cor || C.line, color: "#fff", fontSize: 12, fontWeight: 600 }}>
-          {u ? u.nome[0].toUpperCase() : "?"}
+    <>
+      <div style={{ borderTop: first ? "none" : `1px solid ${C.lineSoft}` }}>
+        {/* ── linha ── */}
+        <div className="flex items-center gap-3 px-5 py-4 cursor-pointer" onClick={() => setOpen(!open)}
+          style={{ transition: "background .13s ease" }}>
+          <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+            style={{ background: u?.cor || C.line, color: "#fff", fontSize: 12, fontWeight: 600 }}>
+            {u ? u.nome[0].toUpperCase() : "?"}
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <p className="truncate" style={{ fontSize: 14.5, fontWeight: 500 }}>{titulo}</p>
+              <Codigo valor={b.codigo} />
+            </div>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              {casa && <IconeCasa casa={casa} size={13} radius={3} />}
+              <p className="num truncate" style={{ fontSize: 12.5, color: C.muted }}>
+                {brl(n(b.valor))} · odd {n(b.odd).toFixed(2)}{casa ? ` · ${casa.nome}` : ""}
+              </p>
+            </div>
+          </div>
+
+          <div className="hidden sm:block"><Pill status={b.status} /></div>
+
+          <div className="text-right shrink-0" style={{ minWidth: 92 }}>
+            {fechada(b)
+              ? <Money v={l} prefix size={15} weight={600} color={l > 0 ? C.green : l < 0 ? C.red : C.faint} />
+              : <Num size={13.5} color={C.faint}>+{brl(previsto)}</Num>}
+          </div>
+
+          <ChevronDown size={16} style={{ color: C.faint, transform: open ? "rotate(180deg)" : "", transition: "transform .16s ease" }} />
         </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate" style={{ fontSize: 14.5, fontWeight: 500 }}>{b.evento || "Sem descrição"}</p>
-          <p className="truncate" style={{ fontSize: 12.5, color: C.muted, fontFamily: F.mono }}>
-            {brl(n(b.valor))} · odd {n(b.odd).toFixed(2)}{casa ? ` · ${casa.nome}` : ""}
-          </p>
-        </div>
-        <div className="hidden sm:block"><Pill status={b.status} /></div>
-        <div className="text-right shrink-0" style={{ minWidth: 92 }}>
-          {fechada(b)
-            ? <Money v={l} prefix size={15} weight={600} color={l > 0 ? C.green : l < 0 ? C.red : C.faint} />
-            : <span style={{ fontFamily: F.mono, fontSize: 13.5, color: C.faint }}>+{brl(previsto)}</span>}
-        </div>
-        <ChevronDown size={16} style={{ color: C.faint, transform: open ? "rotate(180deg)" : "", transition: ".15s" }} />
+
+        {/* ── detalhe ── */}
+        {open && (
+          <div className="anim-detalhe px-5 pb-5" style={{ background: "#FBFBF9" }}>
+            {b.evento && b.evento !== titulo && (
+              <p className="pt-4 pb-1" style={{ fontSize: 13.5, color: C.body }}>{b.evento}</p>
+            )}
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-4">
+              <Info k="Código" v={<Codigo valor={b.codigo} size={12} />} />
+              <Info k="Stake" v={`${Number(b.stakePct).toFixed(2)}%`} />
+              <Info k="Se ganhar volta" v={brl(n(b.valor) * n(b.odd))} />
+              <Info k="Casa" v={casa ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <IconeCasa casa={casa} size={14} radius={3} />
+                  {casa.url
+                    ? <a href={casa.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1" style={{ color: C.blue }}>
+                        {casa.nome}<ExternalLink size={11} />
+                      </a>
+                    : casa.nome}
+                </span>
+              ) : "\u2014"} />
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pb-4">
+              <Info k="Registrada por" v={u?.nome || "\u2014"} />
+              {b.obs && <div className="col-span-2 sm:col-span-3"><Info k="Observação" v={b.obs} /></div>}
+            </div>
+
+            <div className="flex flex-wrap gap-2 items-center">
+              {!fechada(b) ? (
+                <>
+                  <Btn size="sm" kind="green" onClick={() => pedir("green")}>Ganhou</Btn>
+                  <Btn size="sm" kind="red" onClick={() => pedir("red")}>Perdeu</Btn>
+                  <Btn size="sm" kind="outline" onClick={() => pedir("void")}>Anulada</Btn>
+                  <Btn size="sm" kind="outline" onClick={() => pedir("cashout")}>Cashout</Btn>
+                </>
+              ) : (
+                <>
+                  <Pill status={b.status} />
+                  <Btn size="sm" kind="ghost" onClick={() => pedir("aberta")}>Reabrir</Btn>
+                </>
+              )}
+              <div className="flex-1" />
+              <Btn size="sm" kind="ghost" onClick={() => setModalAposta(b)}><Pencil size={14} /></Btn>
+              <Btn size="sm" kind="ghost" onClick={() => setExcluindo(true)} style={{ color: C.red }}><Trash2 size={14} /></Btn>
+            </div>
+          </div>
+        )}
       </div>
 
-      {open && (
-        <div className="px-5 pb-5" style={{ background: "#FBFBF9" }}>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-4">
-            <Info k="Stake" v={`${Number(b.stakePct).toFixed(2)}%`} />
-            <Info k="Se ganhar volta" v={brl(n(b.valor) * n(b.odd))} />
-            <Info k="Casa" v={casa ? (casa.url
-              ? <a href={casa.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1" style={{ color: C.blue }}>{casa.nome}<ExternalLink size={11} /></a>
-              : casa.nome) : "\u2014"} />
-            <Info k="Registrada por" v={u?.nome || "\u2014"} />
-          </div>
-          {b.obs && <p className="pb-3" style={{ fontSize: 13, color: C.body }}>{b.obs}</p>}
-
-          <div className="flex flex-wrap gap-2 items-center">
-            {!fechada(b) ? (
-              <>
-                <Btn size="sm" kind="green" onClick={() => resolver("green")}>Ganhou</Btn>
-                <Btn size="sm" kind="red" onClick={() => resolver("red")}>Perdeu</Btn>
-                <Btn size="sm" kind="outline" onClick={() => resolver("void")}>Anulada</Btn>
-                <Btn size="sm" kind="outline" onClick={() => resolver("cashout")}>Cashout</Btn>
-              </>
-            ) : (
-              <>
-                <Pill status={b.status} />
-                <Btn size="sm" kind="ghost" onClick={() => mudarStatus(b, "aberta")}>Reabrir</Btn>
-              </>
-            )}
-            <div className="flex-1" />
-            <Btn size="sm" kind="ghost" onClick={() => setModalAposta(b)}><Pencil size={14} /></Btn>
-            <Btn size="sm" kind="ghost" onClick={excluir} style={{ color: C.red }}><Trash2 size={14} /></Btn>
-          </div>
-        </div>
+      {/* ── confirmação de status ── */}
+      {a && confirmar !== "cashout" && (
+        <Confirmar
+          titulo={a.titulo}
+          mensagem={a.frase}
+          tom={a.tom}
+          rotuloOk={a.rotulo}
+          onCancelar={() => setConfirmar(null)}
+          onOk={aplicar}
+          detalhe={
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <p className="truncate" style={{ fontSize: 13, fontWeight: 500, color: C.ink }}>{titulo}</p>
+                <Codigo valor={b.codigo} copiavel={false} size={11} />
+              </div>
+              <div className="flex items-baseline justify-between">
+                <span style={{ fontSize: 12.5, color: C.muted }}>Impacto no dia</span>
+                <Money v={a.valor(b)} prefix size={20} weight={700}
+                  color={a.valor(b) > 0 ? C.green : a.valor(b) < 0 ? C.red : C.muted} />
+              </div>
+              <p className="num mt-1" style={{ fontSize: 11.5, color: C.faint }}>
+                {brl(n(b.valor))} · odd {n(b.odd).toFixed(2)}
+              </p>
+            </div>
+          }
+        />
       )}
-    </div>
+
+      {/* ── confirmação de cashout, com valor ── */}
+      {confirmar === "cashout" && (
+        <Confirmar
+          titulo="Encerrar por cashout"
+          mensagem="Digite quanto você recebeu ao encerrar a aposta."
+          tom="blue"
+          rotuloOk="Confirmar cashout"
+          onCancelar={() => setConfirmar(null)}
+          onOk={() => n(cashout) >= 0 && aplicar()}
+          detalhe={
+            <div>
+              <Label>Valor recebido</Label>
+              <Input type="number" step="0.01" value={cashout} autoFocus
+                onChange={(e) => setCashout(e.target.value)}
+                onKeyDown={(e) => e.stopPropagation()} />
+              <div className="flex items-baseline justify-between mt-3">
+                <span style={{ fontSize: 12.5, color: C.muted }}>
+                  Recebido menos {brl(n(b.valor))}
+                </span>
+                <Money v={resultadoCashout} prefix size={18} weight={700}
+                  color={resultadoCashout > 0 ? C.green : resultadoCashout < 0 ? C.red : C.muted} />
+              </div>
+            </div>
+          }
+        />
+      )}
+
+      {/* ── confirmação de exclusão ── */}
+      {excluindo && (
+        <Confirmar
+          titulo="Excluir esta aposta?"
+          mensagem="Não dá para desfazer."
+          tom="red"
+          rotuloOk="Excluir"
+          onCancelar={() => setExcluindo(false)}
+          onOk={() => { excluirAposta(b.id); setExcluindo(false); }}
+          detalhe={
+            <div className="flex items-center gap-2">
+              <p className="truncate flex-1" style={{ fontSize: 13, fontWeight: 500, color: C.ink }}>{titulo}</p>
+              <Codigo valor={b.codigo} copiavel={false} size={11} />
+            </div>
+          }
+        />
+      )}
+    </>
   );
 }
