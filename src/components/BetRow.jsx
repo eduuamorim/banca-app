@@ -109,7 +109,6 @@ export default function BetRow({ b, casas, users, first, setModalAposta, mudarSt
                     ) : casa.nome}
                   </>
                 )}
-                {u && <> · <span style={{ color: C.body }}>{u.nome}</span></>}
               </p>
             </div>
           </div>

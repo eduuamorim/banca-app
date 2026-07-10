@@ -5,7 +5,7 @@ import {
   ArrowDownLeft, ArrowUpRight, Pencil, Trash2, Building2,
 } from "lucide-react";
 import {
-  C, Card, Input, Select, Btn, Empty, Money, Num, Stat, Big,
+  C, Card, Input, Select, SelectCasa, Btn, Empty, Money, Num, Stat, Big,
   Modal, Label, Confirmar, IconeCasa, Avatar, Aviso,
 } from "@/lib/ui";
 import {
@@ -402,7 +402,6 @@ function MovModal({ modal, setModal, casas, users, me, salvarMov }) {
 
   const dep = f.tipo === "deposito";
   const dono = users.find((u) => u.id === f.usuarioId);
-  const casa = casas.find((c) => c.id === f.casaId);
   const ok = n(f.valor) > 0 && f.casaId;
 
   return (
@@ -446,19 +445,8 @@ function MovModal({ modal, setModal, casas, users, me, salvarMov }) {
         </div>
 
         <div><Label>Casa de aposta</Label>
-          <div className="flex gap-2 items-center">
-            {casa && (
-              <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style={{ background: "#fff", border: `1px solid ${C.line}` }}>
-                <IconeCasa casa={casa} size={24} radius={4} />
-              </div>
-            )}
-            <div className="flex-1">
-              <Select value={f.casaId} onChange={(e) => set("casaId", e.target.value)}>
-                <option value="">Selecione</option>
-                {casas.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-              </Select>
-            </div>
-          </div>
+          <SelectCasa casas={casas} valor={f.casaId} onChange={(id) => set("casaId", id)}
+            permitirVazio={false} rotuloVazio="Selecione" />
         </div>
 
         <div><Label>Método</Label>

@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Link2, ImagePlus, Loader2, Sparkles, AlertTriangle, X, Wand2, Cpu } from "lucide-react";
-import { C, Modal, Input, Select, Label, Btn, ST, Codigo, IconeCasa, Aviso, Avatar } from "@/lib/ui";
+import { C, Modal, Input, Select, SelectCasa, Label, Btn, ST, Codigo, Aviso, Avatar } from "@/lib/ui";
 import { uid, hoje, n, brl, sgn, nomeDoEvento, tituloAposta } from "@/lib/calc";
 import { lerBilheteNoAparelho, encerrarOcr } from "@/lib/ocrLocal";
 
@@ -268,20 +268,7 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
         <div className="grid sm:grid-cols-2 gap-4">
           <div><Label>Data</Label><Input type="date" value={f.data} onChange={(e) => set("data", e.target.value)} /></div>
           <div><Label>Casa de aposta</Label>
-            <div className="flex gap-2 items-center">
-              {f.casaId && (
-                <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
-                  style={{ background: "#fff", border: `1px solid ${C.line}` }}>
-                  <IconeCasa casa={casas.find((c) => c.id === f.casaId)} size={24} radius={4} />
-                </div>
-              )}
-              <div className="flex-1">
-                <Select value={f.casaId} onChange={(e) => set("casaId", e.target.value)}>
-                  <option value="">Sem casa</option>
-                  {casas.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-                </Select>
-              </div>
-            </div>
+            <SelectCasa casas={casas} valor={f.casaId} onChange={(id) => set("casaId", id)} />
           </div>
         </div>
 

@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { ChevronDown, X, Copy, Check, AlertTriangle } from "lucide-react";
 import { brl, sgn } from "./calc";
 
@@ -260,6 +260,127 @@ export function IconeCasa({ casa, size = 20, radius = 6 }) {
       className="shrink-0 object-contain"
       style={{ width: size, height: size, borderRadius: radius, background: "#fff" }}
     />
+  );
+}
+
+/* ─────────── seletor de casa, com logo ─────────── */
+
+/**
+ * Um <select> nativo não aceita imagem dentro de <option>.
+ * Este é um dropdown próprio, para a logo aparecer na lista.
+ *
+ * Fecha ao clicar fora, ao apertar Esc, e navega pelo teclado.
+ */
+export function SelectCasa({ casas, valor, onChange, permitirVazio = true, rotuloVazio = "Sem casa" }) {
+  const [aberto, setAberto] = useState(false);
+  const [foco, setFoco] = useState(-1);
+  const caixa = useRef(null);
+
+  const escolhida = casas.find((c) => c.id === valor);
+  const opcoes = permitirVazio ? [{ id: "", nome: rotuloVazio }, ...casas] : casas;
+
+  useEffect(() => {
+    if (!aberto) return;
+    const foraDaCaixa = (e) => {
+      if (caixa.current && !caixa.current.contains(e.target)) setAberto(false);
+    };
+    const tecla = (e) => {
+      if (e.key === "Escape") { setAberto(false); return; }
+      if (e.key === "ArrowDown") { e.preventDefault(); setFoco((i) => Math.min(i + 1, opcoes.length - 1)); }
+      if (e.key === "ArrowUp") { e.preventDefault(); setFoco((i) => Math.max(i - 1, 0)); }
+      if (e.key === "Enter" && foco >= 0) {
+        e.preventDefault();
+        onChange(opcoes[foco].id);
+        setAberto(false);
+      }
+    };
+    document.addEventListener("mousedown", foraDaCaixa);
+    window.addEventListener("keydown", tecla);
+    return () => {
+      document.removeEventListener("mousedown", foraDaCaixa);
+      window.removeEventListener("keydown", tecla);
+    };
+  }, [aberto, foco, opcoes, onChange]);
+
+  // Se não couber embaixo, a lista abre para cima.
+  const [paraCima, setParaCima] = useState(false);
+
+  const abrir = () => {
+    const r = caixa.current?.getBoundingClientRect();
+    if (r) {
+      const espacoAbaixo = window.innerHeight - r.bottom;
+      const altura = Math.min(264, opcoes.length * 45 + 8);
+      setParaCima(espacoAbaixo < altura + 16 && r.top > altura);
+    }
+    setFoco(opcoes.findIndex((o) => o.id === valor));
+    setAberto(true);
+  };
+
+  return (
+    <div ref={caixa} className="relative">
+      <button
+        type="button"
+        onClick={() => (aberto ? setAberto(false) : abrir())}
+        className="w-full flex items-center gap-2.5 outline-none text-left"
+        style={{
+          height: 44, padding: "0 38px 0 12px", borderRadius: 12, background: C.card,
+          border: `1.5px solid ${aberto ? C.green : C.line}`,
+          boxShadow: aberto ? `0 0 0 3px ${C.greenSoft}` : "none",
+          fontSize: 14.5, color: escolhida ? C.ink : C.muted,
+          transition: "border-color .13s ease, box-shadow .13s ease",
+        }}
+      >
+        {escolhida
+          ? <IconeCasa casa={escolhida} size={22} radius={5} />
+          : <span className="inline-flex items-center justify-center shrink-0"
+              style={{ width: 22, height: 22, borderRadius: 5, background: C.lineSoft, color: C.faint, fontSize: 12 }}>
+              ?
+            </span>}
+        <span className="truncate">{escolhida?.nome || rotuloVazio}</span>
+      </button>
+
+      <ChevronDown size={16} className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+        style={{ color: C.faint, transform: aberto ? "translateY(-50%) rotate(180deg)" : "", transition: "transform .16s ease" }} />
+
+      {aberto && (
+        <div className="anim-caixa absolute z-50 left-0 right-0 overflow-hidden rounded-xl"
+          style={{
+            background: C.card, border: `1px solid ${C.line}`,
+            boxShadow: "0 12px 32px rgba(24,38,43,.14)",
+            maxHeight: 264, overflowY: "auto",
+            ...(paraCima ? { bottom: "calc(100% + 6px)" } : { top: "calc(100% + 6px)" }),
+          }}>
+          {opcoes.map((c, i) => {
+            const on = c.id === valor;
+            const sob = i === foco;
+            return (
+              <button
+                key={c.id || "vazio"}
+                type="button"
+                onMouseEnter={() => setFoco(i)}
+                onClick={() => { onChange(c.id); setAberto(false); }}
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left"
+                style={{
+                  background: on ? C.greenSoft : sob ? C.lineSoft : "transparent",
+                  color: on ? C.greenDeep : C.ink,
+                  fontSize: 14.5, fontWeight: on ? 600 : 400,
+                  transition: "background .1s ease",
+                }}
+              >
+                {c.id
+                  ? <IconeCasa casa={c} size={22} radius={5} />
+                  : <span className="inline-flex items-center justify-center shrink-0"
+                      style={{ width: 22, height: 22, borderRadius: 5, background: C.lineSoft, color: C.faint, fontSize: 12 }}>
+                      ?
+                    </span>}
+                <span className="truncate flex-1">{c.nome}</span>
+                {on && <Check size={15} className="shrink-0" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
