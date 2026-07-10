@@ -47,12 +47,37 @@ export const betFromRow = (r) => ({
   obs: r.obs || "",
 });
 
-export const betToRow = (b, usuarioId) => ({
+/**
+ * Linha para INSERIR uma aposta nova.
+ * "nome" vazio faz o banco gravar "Aposta " + código.
+ */
+export const betToInsert = (b, usuarioId) => ({
   usuario_id: b.usuarioId || usuarioId,
   casa_id: b.casaId || null,
   data: b.data,
-  nome: b.nome || "",           // vazio = o banco preenche com "Aposta " + código
+  nome: b.nome || "",
   evento: b.evento || "",
+  stake_pct: n(b.stakePct),
+  valor: n(b.valor),
+  odd: n(b.odd),
+  status: b.status,
+  cashout_valor: b.status === "cashout" ? n(b.cashoutValor) : null,
+  obs: b.obs || "",
+});
+
+/**
+ * Linha para ATUALIZAR uma aposta existente.
+ *
+ * Não inclui "nome", "evento", "codigo" nem "usuario_id".
+ * Esses campos são a identidade da aposta e nunca mudam depois
+ * de cadastrada. Omitir aqui é a garantia de verdade: mesmo que
+ * alguém force a tela, o update não carrega esses valores.
+ *
+ * O banco também recusa a alteração, por gatilho.
+ */
+export const betToUpdate = (b) => ({
+  casa_id: b.casaId || null,
+  data: b.data,
   stake_pct: n(b.stakePct),
   valor: n(b.valor),
   odd: n(b.odd),
@@ -87,13 +112,38 @@ export const faviconDe = (url, tamanho = 64) => {
 export const nomePadrao = (codigo) => (codigo ? `Aposta ${codigo}` : "Aposta");
 
 /**
- * Corta um nome longo vindo do print, para caber na linha.
- * "Flamengo x Palmeiras — Mais de 1.5 gols" -> "Flamengo x Palmeiras"
+ * Tira o confronto de dentro do evento, para virar o nome da aposta.
+ *
+ * "Flamengo x Palmeiras — Mais de 1.5 gols"  -> "Flamengo x Palmeiras"
+ * "Mais de 1.5 gols - Flamengo x Palmeiras"  -> "Flamengo x Palmeiras"
+ * "Vencedor: Corinthians vs São Paulo"       -> "Corinthians vs São Paulo"
+ * "Múltipla de 3 seleções"                   -> "Múltipla de 3 seleções"
  */
 export const nomeDoEvento = (evento) => {
   if (!evento) return "";
-  const t = String(evento).split(/\s+[\u2014\u2013-]\s+/)[0].trim();
-  return t.length > 48 ? t.slice(0, 45).trimEnd() + "\u2026" : t;
+  const bruto = String(evento).replace(/\s+/g, " ").trim();
+  if (!bruto) return "";
+
+  const corta = (s) => (s.length > 48 ? s.slice(0, 45).trimEnd() + "\u2026" : s);
+
+  // Um time: letras, números, ponto, apóstrofo, hífen e espaço. Sem dígitos soltos.
+  const TIME = "[\\p{L}][\\p{L}\\p{N}.'\\-]*(?: [\\p{L}][\\p{L}\\p{N}.'\\-]*){0,3}";
+  // Separadores de confronto. Guardamos qual foi usado para devolver igual.
+  const SEP = "(x|vs\\.?|v)";
+
+  const re = new RegExp(`(${TIME})\\s+${SEP}\\s+(${TIME})`, "iu");
+  const m = bruto.match(re);
+
+  if (m) {
+    const a = m[1].trim();
+    const sep = m[2].toLowerCase().startsWith("vs") ? "vs" : "x";
+    const b = m[3].trim();
+    if (a && b) return corta(`${a} ${sep} ${b}`);
+  }
+
+  // Sem confronto: primeiro pedaço antes de travessão, barra vertical ou hífen cercado.
+  const pedaco = bruto.split(/\s+[\u2014\u2013|]\s+|\s+-\s+/)[0].trim();
+  return corta(pedaco || bruto);
 };
 
 export const cfgFromRow = (r) => ({

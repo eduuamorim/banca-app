@@ -25,22 +25,27 @@ function escolherProvedor() {
 
 const INSTRUCAO = `Você lê bilhetes de aposta esportiva de casas brasileiras (Bet365, Betano, Superbet, Estrela Bet, Sportingbet, KTO e similares).
 
+Extraia APENAS o evento, a odd e o nome da casa. Ignore valores em reais:
+o quanto foi apostado não interessa e nunca deve ser devolvido.
+
 Devolva SOMENTE um objeto JSON, sem crases, sem markdown, sem texto antes ou depois:
 
 {
   "encontrou": true ou false,
   "evento": "Time A x Time B — mercado apostado",
   "odd": número decimal,
-  "valor": número em reais apostado,
   "casa": "nome da casa, se aparecer",
   "confianca": "alta" | "media" | "baixa"
 }
 
 Regras:
-- "evento" junta o confronto e o mercado. Exemplo: "Flamengo x Palmeiras — Mais de 1.5 gols".
-- "odd" é a cotação total do bilhete. Em múltiplas, use a odd combinada.
-- "valor" é quanto foi APOSTADO (a stake), nunca o retorno possível.
-- Se o valor não aparecer, use null.
+- "evento" começa SEMPRE pelo confronto, depois o mercado, separados por travessão.
+  Certo:  "Flamengo x Palmeiras — Mais de 1.5 gols"
+  Errado: "Mais de 1.5 gols — Flamengo x Palmeiras"
+- Escreva o confronto com " x " entre os times, mesmo que o bilhete use "vs" ou "@".
+- Em múltiplas, use o primeiro confronto e escreva o mercado como "Múltipla de N seleções".
+- "odd" é a cotação total do bilhete. Em múltiplas, a odd combinada.
+- Não devolva o campo "valor". Ele não é usado.
 - Se não for um bilhete de aposta, devolva {"encontrou": false}.
 - Números sempre com ponto decimal, nunca vírgula.`;
 

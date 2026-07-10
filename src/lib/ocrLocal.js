@@ -5,6 +5,9 @@
 
    É a rede de proteção: entra quando não há chave de IA
    configurada, ou quando a IA falha.
+
+   Extrai apenas EVENTO e ODD. O valor apostado nunca sai
+   do bilhete: a stake é escolhida por você nos botões.
 ══════════════════════════════════════════════════════ */
 
 /** "1.234,56" -> 1234.56 · "84,00" -> 84 · "1.85" -> 1.85 */
@@ -25,18 +28,11 @@ function numeroBR(s) {
   return parseFloat(t);
 }
 
-const perto = (a, b, tol = 0.04) => Math.abs(a - b) <= Math.abs(b) * tol;
-
 /* ─────────── interpretação do texto lido ─────────── */
 
 export function interpretar(texto) {
   const bruto = texto.replace(/\u00a0/g, " ");
   const linhas = bruto.split("\n").map((l) => l.trim()).filter(Boolean);
-
-  // ── todos os valores em reais ──
-  const moedas = [...bruto.matchAll(/R\$\s*([\d.]*\d(?:[.,]\d{2})?)/g)]
-    .map((m) => numeroBR(m[1]))
-    .filter((v) => !isNaN(v) && v > 0);
 
   // ── odd ──
   // primeiro procura numa linha que fale de odd/cotação
@@ -54,30 +50,6 @@ export function interpretar(texto) {
       .filter((v) => v > 1.01 && v < 300);
     if (cands.length) odd = cands[0];
   }
-
-  // ── valor apostado ──
-  let valor = NaN;
-  const linhaStake = linhas.find((l) =>
-    /valor\s*(da)?\s*aposta|total\s*apostado|aposta\s*[:\-]|stake|voc[eê]\s*apostou/i.test(l)
-  );
-  if (linhaStake) {
-    const m = linhaStake.match(/R\$\s*([\d.]*\d(?:[.,]\d{2})?)/);
-    if (m) valor = numeroBR(m[1]);
-  }
-
-  // ainda sem valor: se a odd é confiável, o par (aposta, retorno)
-  // satisfaz retorno ≈ aposta × odd. Isso identifica a stake com segurança.
-  if (isNaN(valor) && !isNaN(odd) && odd > 1.01 && moedas.length >= 2) {
-    for (const a of moedas) {
-      for (const b of moedas) {
-        if (a !== b && perto(b, a * odd)) { valor = a; break; }
-      }
-      if (!isNaN(valor)) break;
-    }
-  }
-
-  // último recurso: a menor quantia da tela costuma ser a stake
-  if (isNaN(valor) && moedas.length) valor = Math.min(...moedas);
 
   // ── casa ──
   const CASAS = ["bet365", "betano", "superbet", "estrela bet", "sportingbet", "kto", "betfair", "novibet", "vbet", "pixbet", "esportes da sorte", "betnacional", "stake"];
@@ -107,15 +79,12 @@ export function interpretar(texto) {
     if (mercado) evento = `${linhaJogo} \u2014 ${mercado}`;
   }
 
-  const achouAlgo = !isNaN(odd) || !isNaN(valor) || !!evento;
-
   return {
-    encontrou: achouAlgo,
+    encontrou: !isNaN(odd) || !!evento,
     evento: evento || "",
     odd: isNaN(odd) ? null : Number(odd.toFixed(2)),
-    valor: isNaN(valor) ? null : Number(valor.toFixed(2)),
     casa,
-    confianca: !isNaN(odd) && !isNaN(valor) && evento ? "media" : "baixa",
+    confianca: !isNaN(odd) && evento ? "media" : "baixa",
   };
 }
 

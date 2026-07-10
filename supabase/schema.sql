@@ -145,6 +145,43 @@ create trigger ao_inserir_aposta
   before insert on public.apostas
   for each row execute function public.antes_de_inserir_aposta();
 
+-- ══════════════════════════════════════════════════════════
+--  IDENTIDADE DA APOSTA É IMUTÁVEL
+--
+--  Código, nome, evento e dono não mudam depois de criada.
+--  Isso mantém a aposta rastreável: o que está na lista é o
+--  que foi cadastrado.
+--
+--  Esta regra vive no banco, não na tela. Mesmo que alguém
+--  chame a API direto, o banco recusa a alteração.
+-- ══════════════════════════════════════════════════════════
+
+create or replace function public.travar_identidade_aposta()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.codigo is distinct from old.codigo then
+    raise exception 'O código da aposta não pode ser alterado.';
+  end if;
+  if new.nome is distinct from old.nome then
+    raise exception 'O nome da aposta não pode ser alterado.';
+  end if;
+  if new.evento is distinct from old.evento then
+    raise exception 'O evento da aposta não pode ser alterado.';
+  end if;
+  if new.usuario_id is distinct from old.usuario_id then
+    raise exception 'A aposta não pode trocar de dono.';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists ao_atualizar_aposta on public.apostas;
+create trigger ao_atualizar_aposta
+  before update on public.apostas
+  for each row execute function public.travar_identidade_aposta();
+
 -- Garante que dois códigos nunca se repitam
 create unique index if not exists apostas_codigo_idx on public.apostas (codigo);
 

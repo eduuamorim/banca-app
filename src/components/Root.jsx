@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { Gauge, Receipt, PieChart, Building2, Settings, Plus, Check, LogOut } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { C } from "@/lib/ui";
-import { hoje, brl, sgn, lucro, fechada, betFromRow, betToRow, cfgFromRow, cfgToRow, n } from "@/lib/calc";
+import { hoje, brl, sgn, lucro, fechada, betFromRow, betToInsert, betToUpdate, cfgFromRow, cfgToRow, n } from "@/lib/calc";
 
 import Login from "./Login";
 import Painel from "./Painel";
@@ -80,11 +80,11 @@ export default function Root() {
   const salvarAposta = async (b) => {
     const existe = bets.some((x) => x.id === b.id);
     if (existe) {
-      const { error } = await supabase.from("apostas").update(betToRow(b, meId)).eq("id", b.id);
+      const { error } = await supabase.from("apostas").update(betToUpdate(b)).eq("id", b.id);
       if (error) return flash("Erro ao salvar.");
       flash("Aposta atualizada");
     } else {
-      const { error } = await supabase.from("apostas").insert(betToRow(b, meId));
+      const { error } = await supabase.from("apostas").insert(betToInsert(b, meId));
       if (error) return flash("Erro ao registrar.");
       flash("Aposta registrada");
     }

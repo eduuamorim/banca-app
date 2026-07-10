@@ -1,8 +1,8 @@
 "use client";
 import React, { useState } from "react";
-import { ChevronDown, ExternalLink, Pencil, Trash2 } from "lucide-react";
+import { ChevronDown, ExternalLink, Pencil, Trash2, Check, X, MoreHorizontal } from "lucide-react";
 import { C, Pill, Btn, Num, Money, Info, Codigo, IconeCasa, Confirmar, Input, Label } from "@/lib/ui";
-import { n, brl, sgn, lucro, fechada, nomePadrao } from "@/lib/calc";
+import { n, brl, lucro, fechada, nomePadrao } from "@/lib/calc";
 
 /* Cada resolução mostra a consequência em reais ANTES de confirmar. */
 const ACOES = {
@@ -40,6 +40,7 @@ const ACOES = {
 
 export default function BetRow({ b, casas, users, first, setModalAposta, mudarStatus, excluirAposta }) {
   const [open, setOpen] = useState(false);
+  const [mais, setMais] = useState(false);            // anulada/cashout na própria linha
   const [confirmar, setConfirmar] = useState(null);   // chave de ACOES
   const [cashout, setCashout] = useState("");
   const [excluindo, setExcluindo] = useState(false);
@@ -59,6 +60,7 @@ export default function BetRow({ b, casas, users, first, setModalAposta, mudarSt
     if (confirmar === "cashout") mudarStatus(b, "cashout", cashout);
     else mudarStatus(b, confirmar);
     setConfirmar(null);
+    setMais(false);
   };
 
   const a = confirmar ? ACOES[confirmar] : null;
@@ -88,9 +90,23 @@ export default function BetRow({ b, casas, users, first, setModalAposta, mudarSt
             </div>
           </div>
 
-          <div className="hidden sm:block"><Pill status={b.status} /></div>
+          {/* Selo do status. Nas abertas some no celular, para caber os botões. */}
+          <div className={fechada(b) ? "" : "hidden md:block"}>
+            <Pill status={b.status} />
+          </div>
 
-          <div className="text-right shrink-0" style={{ minWidth: 92 }}>
+          {/* Aposta aberta: resolve direto daqui, sem abrir o detalhe. */}
+          {!fechada(b) && (
+            <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+              <Rapido tom="green" titulo="Marcar como Green" onClick={() => pedir("green")}><Check size={15} /></Rapido>
+              <Rapido tom="red" titulo="Marcar como Red" onClick={() => pedir("red")}><X size={15} /></Rapido>
+              <Rapido tom="cinza" ativo={mais} titulo="Anulada ou cashout" onClick={() => setMais(!mais)}>
+                <MoreHorizontal size={15} />
+              </Rapido>
+            </div>
+          )}
+
+          <div className={`text-right shrink-0 ${fechada(b) ? "" : "hidden sm:block"}`} style={{ minWidth: 92 }}>
             {fechada(b)
               ? <Money v={l} prefix size={15} weight={600} color={l > 0 ? C.green : l < 0 ? C.red : C.faint} />
               : <Num size={13.5} color={C.faint}>+{brl(previsto)}</Num>}
@@ -98,6 +114,16 @@ export default function BetRow({ b, casas, users, first, setModalAposta, mudarSt
 
           <ChevronDown size={16} style={{ color: C.faint, transform: open ? "rotate(180deg)" : "", transition: "transform .16s ease" }} />
         </div>
+
+        {/* ── anulada / cashout, sem abrir o detalhe ── */}
+        {mais && !fechada(b) && (
+          <div className="anim-detalhe flex flex-wrap items-center gap-2 px-5 pb-3 -mt-1">
+            <span style={{ fontSize: 12.5, color: C.muted }}>Resolver como</span>
+            <Btn size="sm" kind="outline" onClick={() => pedir("void")}>Anulada</Btn>
+            <Btn size="sm" kind="outline" onClick={() => pedir("cashout")}>Cashout</Btn>
+            <Btn size="sm" kind="ghost" onClick={() => setMais(false)}>Fechar</Btn>
+          </div>
+        )}
 
         {/* ── detalhe ── */}
         {open && (
@@ -136,10 +162,7 @@ export default function BetRow({ b, casas, users, first, setModalAposta, mudarSt
                   <Btn size="sm" kind="outline" onClick={() => pedir("cashout")}>Cashout</Btn>
                 </>
               ) : (
-                <>
-                  <Pill status={b.status} />
-                  <Btn size="sm" kind="ghost" onClick={() => pedir("aberta")}>Reabrir</Btn>
-                </>
+                <Btn size="sm" kind="ghost" onClick={() => pedir("aberta")}>Reabrir</Btn>
               )}
               <div className="flex-1" />
               <Btn size="sm" kind="ghost" onClick={() => setModalAposta(b)}><Pencil size={14} /></Btn>
@@ -222,5 +245,37 @@ export default function BetRow({ b, casas, users, first, setModalAposta, mudarSt
         />
       )}
     </>
+  );
+}
+
+/* ── botão redondo de resolver, na própria linha ── */
+
+function Rapido({ tom, titulo, onClick, children, ativo }) {
+  const [sobre, setSobre] = useState(false);
+  const cores = {
+    green: { fg: C.greenDeep, bg: C.greenSoft, bd: C.greenBand, on: C.green },
+    red:   { fg: C.red,       bg: C.redSoft,   bd: C.redBand,   on: C.red },
+    cinza: { fg: C.muted,     bg: C.lineSoft,  bd: C.line,      on: C.body },
+  }[tom];
+  const aceso = sobre || ativo;
+
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setSobre(true)}
+      onMouseLeave={() => setSobre(false)}
+      title={titulo}
+      aria-label={titulo}
+      className="inline-flex items-center justify-center shrink-0"
+      style={{
+        width: 30, height: 30, borderRadius: 9,
+        background: aceso ? cores.on : cores.bg,
+        border: `1px solid ${aceso ? cores.on : cores.bd}`,
+        color: aceso ? "#fff" : cores.fg,
+        transition: "background .13s ease, color .13s ease, border-color .13s ease",
+      }}
+    >
+      {children}
+    </button>
   );
 }

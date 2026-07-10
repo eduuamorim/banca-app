@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Link2, ImagePlus, Loader2, Sparkles, AlertTriangle, X, Wand2, Cpu } from "lucide-react";
-import { C, Modal, Input, Select, Label, Btn, ST, Codigo, IconeCasa, Aviso } from "@/lib/ui";
+import { Link2, ImagePlus, Loader2, Sparkles, AlertTriangle, X, Wand2, Cpu, Lock } from "lucide-react";
+import { C, Modal, Input, Select, Label, Btn, ST, Codigo, IconeCasa, Aviso, Avatar } from "@/lib/ui";
 import { uid, hoje, n, brl, sgn, nomeDoEvento, nomePadrao } from "@/lib/calc";
 import { lerBilheteNoAparelho, encerrarOcr } from "@/lib/ocrLocal";
 
@@ -14,7 +14,7 @@ import { lerBilheteNoAparelho, encerrarOcr } from "@/lib/ocrLocal";
    MANUAL  → se nada der certo, os campos ficam livres
 ═══════════════════════════════════════════════════════ */
 
-function AutoFill({ token, onDados }) {
+function AutoFill({ token, onDados, me }) {
   const [url, setUrl] = useState("");
   const [fase, setFase] = useState(null);      // 'link' | 'ia' | 'ocr' | null
   const [progresso, setProgresso] = useState(0);
@@ -113,6 +113,11 @@ function AutoFill({ token, onDados }) {
         <Wand2 size={15} style={{ color: C.green }} />
         <span style={{ fontSize: 12.5, fontWeight: 600, color: C.body }}>Preencher automático</span>
         <span style={{ fontSize: 11.5, color: C.faint }}>opcional</span>
+        <div className="flex-1" />
+        <span className="inline-flex items-center gap-1.5">
+          <Avatar user={me} size={18} />
+          <span style={{ fontSize: 11.5, color: C.muted }}>{me?.nome}</span>
+        </span>
       </div>
 
       {/* link */}
@@ -208,22 +213,21 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
 
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
   const setStake = (pct) => setF((p) => ({ ...p, stakePct: n(pct), valor: (cfg.banca * n(pct)) / 100 }));
-  const setValor = (v) => setF((p) => ({ ...p, valor: v, stakePct: cfg.banca ? Number(((n(v) / cfg.banca) * 100).toFixed(4)) : 0 }));
 
-  // aplica o que foi lido, sem apagar o que já estava preenchido
+  /**
+   * Aplica o que foi lido no bilhete.
+   *
+   * Só EVENTO e ODD vêm do print. A stake é decisão sua e nunca
+   * é sobrescrita, mesmo que o bilhete mostre um valor apostado.
+   */
   const aplicar = useCallback((d) => {
     setF((p) => {
       const novo = { ...p };
       if (d.evento) {
         novo.evento = d.evento;
-        // o nome curto sai do confronto, para você se localizar na lista
-        if (!novo.nome) novo.nome = nomeDoEvento(d.evento);
+        novo.nome = nomeDoEvento(d.evento);
       }
       if (d.odd) novo.odd = d.odd;
-      if (d.valor) {
-        novo.valor = d.valor;
-        novo.stakePct = cfg.banca ? Number(((d.valor / cfg.banca) * 100).toFixed(4)) : 0;
-      }
       if (d.casa) {
         const alvo = String(d.casa).toLowerCase();
         const achou = casas.find(
@@ -234,7 +238,7 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
       return novo;
     });
     setAuto(true);
-  }, [casas, cfg.banca]);
+  }, [casas]);
 
   const ok = n(f.odd) > 1 && n(f.valor) > 0;
   const ganho = n(f.valor) * (n(f.odd) - 1);
@@ -243,14 +247,20 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
   return (
     <Modal onClose={onClose} wide
       title={editando ? "Editar aposta" : "Nova aposta"}
-      sub={editando ? `Registrada por ${dono?.nome || "\u2014"}` : `Vai entrar no nome de ${me.nome}`}>
+      sub={
+        <span className="inline-flex items-center gap-1.5">
+          {editando ? "Registrada por" : "Vai entrar no nome de"}
+          <Avatar user={editando ? dono : me} size={17} />
+          <b style={{ fontWeight: 600, color: C.body }}>{(editando ? dono : me)?.nome || "\u2014"}</b>
+        </span>
+      }>
       <div className="space-y-5">
 
-        {!editando && <AutoFill token={sessao.access_token} onDados={aplicar} />}
+        {!editando && <AutoFill token={sessao.access_token} onDados={aplicar} me={me} />}
 
         {auto && (
           <div className="anim-aviso flex items-center justify-between rounded-lg px-3 py-2" style={{ background: C.blueSoft, border: `1px solid ${C.blueBand}` }}>
-            <p style={{ fontSize: 12.5, color: C.blue }}>Campos preenchidos pela leitura. Confira antes de salvar.</p>
+            <p style={{ fontSize: 12.5, color: C.blue }}>Evento e odd vieram do bilhete. A stake continua sendo sua escolha.</p>
             <button onClick={() => setAuto(false)} style={{ color: C.blue }}><X size={14} /></button>
           </div>
         )}
@@ -277,20 +287,33 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
 
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <span style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: C.muted }}>Nome</span>
+            <span style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: C.muted }}>Evento</span>
             {f.codigo && <Codigo valor={f.codigo} size={11} />}
           </div>
-          <Input value={f.nome} onChange={(e) => set("nome", e.target.value)}
-            placeholder={editando ? "" : "Deixe vazio para virar \"Aposta + código\""} />
-          {!editando && !f.nome && (
-            <p className="mt-1.5" style={{ fontSize: 12, color: C.faint }}>
-              Sem nome, ela nasce como <b style={{ color: C.body }}>Aposta + código único</b>, tipo Aposta K3F9.
-            </p>
+          {editando ? (
+            <>
+              <div className="flex items-center gap-2 rounded-xl px-3.5"
+                style={{ height: 44, background: C.lineSoft, border: `1.5px solid ${C.line}` }}>
+                <Lock size={14} style={{ color: C.faint }} className="shrink-0" />
+                <span className="truncate" style={{ fontSize: 14.5, color: C.body }}>
+                  {f.evento || nomePadrao(f.codigo)}
+                </span>
+              </div>
+              <p className="mt-1.5" style={{ fontSize: 12, color: C.faint }}>
+                O evento e o nome não mudam depois de cadastrada, para a aposta continuar rastreável pelo código.
+              </p>
+            </>
+          ) : (
+            <>
+              <Input value={f.evento} onChange={(e) => set("evento", e.target.value)}
+                placeholder="Flamengo x Palmeiras \u2014 Mais de 1.5 gols" />
+              <p className="mt-1.5" style={{ fontSize: 12, color: C.faint }}>
+                {f.evento
+                  ? <>Vai aparecer na lista como <b style={{ color: C.body }}>{nomeDoEvento(f.evento)}</b></>
+                  : <>Sem evento, ela nasce como <b style={{ color: C.body }}>Aposta + código</b>, tipo Aposta K3F9</>}
+              </p>
+            </>
           )}
-        </div>
-
-        <div><Label>Evento</Label>
-          <Input value={f.evento} onChange={(e) => set("evento", e.target.value)} placeholder="Flamengo x Palmeiras \u2014 Mais de 1.5 gols" />
         </div>
 
         <div>
@@ -307,9 +330,11 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
               );
             })}
           </div>
-          <div className="grid grid-cols-2 gap-3 mt-3">
-            <div><Label>Percentual</Label><Input type="number" step="0.01" value={f.stakePct} onChange={(e) => setStake(e.target.value)} /></div>
-            <div><Label>Valor R$</Label><Input type="number" step="0.01" value={f.valor} onChange={(e) => setValor(e.target.value)} /></div>
+          <div className="flex items-baseline justify-between mt-3 px-1">
+            <span style={{ fontSize: 12.5, color: C.muted }}>Vai apostar</span>
+            <span className="num" style={{ fontSize: 15, fontWeight: 600, color: C.ink }}>
+              {brl(n(f.valor))} <span style={{ fontSize: 12, fontWeight: 400, color: C.faint }}>· {n(f.stakePct)}% da banca</span>
+            </span>
           </div>
         </div>
 
@@ -348,7 +373,13 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
 
         <div className="flex justify-end gap-2 pt-1">
           <Btn kind="outline" onClick={onClose}>Cancelar</Btn>
-          <Btn kind="green" disabled={!ok} onClick={() => { salvarAposta({ ...f, valor: n(f.valor), odd: n(f.odd), stakePct: n(f.stakePct) }); onClose(); }}>
+          <Btn kind="green" disabled={!ok} onClick={() => {
+            const base = { ...f, valor: n(f.valor), odd: n(f.odd), stakePct: n(f.stakePct) };
+            // Numa aposta nova o nome nasce do evento. Vazio = o banco usa "Aposta " + código.
+            // Editando, nome e evento não são enviados: são imutáveis.
+            salvarAposta(editando ? base : { ...base, nome: nomeDoEvento(f.evento) });
+            onClose();
+          }}>
             {editando ? "Salvar" : "Registrar aposta"}
           </Btn>
         </div>

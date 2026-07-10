@@ -1,7 +1,7 @@
 "use client";
 import React, { useMemo } from "react";
 import { PieChart } from "lucide-react";
-import { C, Card, Empty, Big, Tabela } from "@/lib/ui";
+import { C, Card, Empty, Big, Tabela, Usuario, Avatar, IconeCasa } from "@/lib/ui";
 import { n, brl, sgn, lucro, fechada } from "@/lib/calc";
 
 export default function Relatorio({ bets, users, casas, cfg, meta, stop, lucroTotal }) {
@@ -39,6 +39,40 @@ export default function Relatorio({ bets, users, casas, cfg, meta, stop, lucroTo
         <Big k="Dias operados" v={dias.length} sub={`${dias.filter((d) => d.luc >= meta).length} com meta batida`} />
       </div>
 
+      {/* quem apostou o quê */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {users.filter((u) => res.some((b) => b.usuarioId === u.id)).map((u) => {
+          const s = calc(res.filter((b) => b.usuarioId === u.id));
+          const fatia = geral.inv ? (s.inv / geral.inv) * 100 : 0;
+          return (
+            <Card key={u.id}>
+              <div className="flex items-center gap-3">
+                <Avatar user={u} size={38} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate" style={{ fontSize: 15, fontWeight: 600 }}>{u.nome}</p>
+                  <p className="num" style={{ fontSize: 12, color: C.muted }}>
+                    {s.qtd} aposta{s.qtd !== 1 ? "s" : ""} · {fatia.toFixed(0)}% do investido
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="num" style={{ fontSize: 19, fontWeight: 700, letterSpacing: "-0.02em", color: s.luc >= 0 ? C.green : C.red }}>
+                    {sgn(s.luc)}
+                  </p>
+                  <p className="num" style={{ fontSize: 11.5, color: C.faint }}>ROI {s.roi.toFixed(1)}%</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 mt-4 pt-4" style={{ borderTop: `1px solid ${C.lineSoft}` }}>
+                <Mini k="Green" v={s.g} cor={C.green} />
+                <Mini k="Red" v={s.r} cor={C.red} />
+                <Mini k="Acerto" v={`${s.acerto.toFixed(0)}%`} />
+                <Mini k="Investido" v={brl(s.inv)} />
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+
       <Card>
         <h2 className="mb-5" style={{ fontSize: 17, fontWeight: 600 }}>Resultado por dia</h2>
         <div className="space-y-2.5">
@@ -72,12 +106,7 @@ export default function Relatorio({ bets, users, casas, cfg, meta, stop, lucroTo
           rows={users.filter((u) => res.some((b) => b.usuarioId === u.id)).map((u) => {
             const s = calc(res.filter((b) => b.usuarioId === u.id));
             return [
-              <span key="u" className="flex items-center gap-2">
-                <span className="w-6 h-6 rounded-full flex items-center justify-center shrink-0" style={{ background: u.cor, color: "#fff", fontSize: 10.5, fontWeight: 600 }}>
-                  {u.nome[0].toUpperCase()}
-                </span>
-                {u.nome}
-              </span>,
+              <Usuario key="u" user={u} />,
               s.qtd, `${s.g}/${s.r}`, `${s.acerto.toFixed(0)}%`, brl(s.inv),
               <span key="l" style={{ color: s.luc >= 0 ? C.green : C.red }}>{sgn(s.luc)}</span>,
               `${s.roi.toFixed(1)}%`,
@@ -93,7 +122,11 @@ export default function Relatorio({ bets, users, casas, cfg, meta, stop, lucroTo
             .map((c) => {
               const s = calc(res.filter((b) => (b.casaId || null) === c.id));
               return [
-                c.nome, s.qtd, `${s.g}/${s.r}`, `${s.acerto.toFixed(0)}%`, brl(s.inv),
+                <span key="c" className="inline-flex items-center gap-2 min-w-0">
+                  {c.id && <IconeCasa casa={c} size={20} radius={4} />}
+                  <span className="truncate">{c.nome}</span>
+                </span>,
+                s.qtd, `${s.g}/${s.r}`, `${s.acerto.toFixed(0)}%`, brl(s.inv),
                 <span key="l" style={{ color: s.luc >= 0 ? C.green : C.red }}>{sgn(s.luc)}</span>,
                 `${s.roi.toFixed(1)}%`,
               ];
@@ -102,3 +135,10 @@ export default function Relatorio({ bets, users, casas, cfg, meta, stop, lucroTo
     </div>
   );
 }
+
+const Mini = ({ k, v, cor }) => (
+  <div className="flex-1 min-w-0">
+    <p style={{ fontSize: 10.5, letterSpacing: ".05em", textTransform: "uppercase", color: C.faint, fontWeight: 600 }}>{k}</p>
+    <p className="num truncate" style={{ fontSize: 14, fontWeight: 600, color: cor || C.ink }}>{v}</p>
+  </div>
+);

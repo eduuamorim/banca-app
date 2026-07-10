@@ -187,6 +187,42 @@ export function Codigo({ valor, size = 11.5, copiavel = true }) {
   );
 }
 
+/* ─────────── avatar do usuário ─────────── */
+
+export function Avatar({ user, size = 24, borda }) {
+  if (!user) {
+    return (
+      <span className="inline-flex items-center justify-center shrink-0"
+        style={{ width: size, height: size, borderRadius: size / 2, background: C.line, color: "#fff", fontSize: size * 0.42, fontWeight: 600 }}>
+        ?
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center justify-center shrink-0"
+      style={{
+        width: size, height: size, borderRadius: size / 2,
+        background: user.cor, color: "#fff",
+        fontSize: size * 0.42, fontWeight: 600,
+        border: borda ? `2px solid ${borda}` : "none",
+      }}>
+      {user.nome[0].toUpperCase()}
+    </span>
+  );
+}
+
+/** Avatar mais nome, na mesma linha. */
+export function Usuario({ user, size = 22, peso = 500, cor, tamanho = 13.5 }) {
+  return (
+    <span className="inline-flex items-center gap-2 min-w-0">
+      <Avatar user={user} size={size} />
+      <span className="truncate" style={{ fontSize: tamanho, fontWeight: peso, color: cor || C.ink }}>
+        {user?.nome || "\u2014"}
+      </span>
+    </span>
+  );
+}
+
 /* ─────────── ícone da casa ─────────── */
 
 export function IconeCasa({ casa, size = 20, radius = 6 }) {
@@ -234,7 +270,7 @@ export function Modal({ onClose, title, sub, children, wide }) {
         <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-4">
           <div>
             <h3 style={{ fontSize: 20, fontWeight: 700, color: C.ink, letterSpacing: "-0.02em" }}>{title}</h3>
-            {sub && <p className="mt-0.5" style={{ fontSize: 13, color: C.muted }}>{sub}</p>}
+            {sub && <div className="mt-0.5" style={{ fontSize: 13, color: C.muted }}>{sub}</div>}
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg shrink-0" style={{ color: C.faint, transition: "color .13s" }}>
             <X size={18} />

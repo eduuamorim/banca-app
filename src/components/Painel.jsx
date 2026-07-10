@@ -1,8 +1,8 @@
 "use client";
 import React from "react";
 import { Check, X, ChevronRight, Receipt } from "lucide-react";
-import { C, Card, Label, Input, Empty, Money, Num, Faixa } from "@/lib/ui";
-import { n, brl, sgn, dBR, hoje, lucro, fechada } from "@/lib/calc";
+import { C, Card, Label, Input, Empty, Money, Faixa } from "@/lib/ui";
+import { n, brl, sgn, dBR, hoje, fechada } from "@/lib/calc";
 import BetRow from "./BetRow";
 
 export default function Painel(p) {

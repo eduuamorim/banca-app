@@ -1,8 +1,8 @@
 "use client";
 import React, { useState, useMemo } from "react";
 import { Plus, Receipt, Search, SlidersHorizontal, X, ChevronDown } from "lucide-react";
-import { C, Card, Input, Select, Btn, Empty, Money, Stat, Num, ST } from "@/lib/ui";
-import { n, brl, sgn, dBR, hoje, lucro, fechada, nomePadrao } from "@/lib/calc";
+import { C, Card, Input, Select, Btn, Empty, Money, Stat, ST } from "@/lib/ui";
+import { n, brl, sgn, dBR, hoje, lucro, fechada } from "@/lib/calc";
 import BetRow from "./BetRow";
 
 /* ── atalhos de período ── */
