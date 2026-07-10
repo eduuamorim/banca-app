@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import { ChevronDown, ExternalLink, Pencil, Trash2, Check, X, MoreHorizontal } from "lucide-react";
 import { C, Pill, Btn, Num, Money, Info, Codigo, IconeCasa, Confirmar, Input, Label } from "@/lib/ui";
-import { n, brl, lucro, fechada, tituloAposta, nomePadrao } from "@/lib/calc";
+import { n, brl, lucro, fechada, tituloAposta } from "@/lib/calc";
 
 /* Cada resolução mostra a consequência em reais ANTES de confirmar. */
 const ACOES = {
@@ -49,10 +49,8 @@ export default function BetRow({ b, casas, users, first, setModalAposta, mudarSt
   const u = users.find((x) => x.id === b.usuarioId);
   const l = lucro(b);
   const previsto = n(b.valor) * (n(b.odd) - 1);
+  // Nome e código são coisas separadas. O chip aparece sempre.
   const titulo = tituloAposta(b);
-  // Sem evento o título já é "APOSTA #HAAL". Repetir o chip ao lado
-  // seria redundante, então ele só aparece quando há um nome de verdade.
-  const mostrarChip = titulo !== nomePadrao(b.codigo);
 
   const pedir = (chave) => {
     if (chave === "cashout") setCashout(String(n(b.valor).toFixed(2)));
@@ -85,7 +83,7 @@ export default function BetRow({ b, casas, users, first, setModalAposta, mudarSt
               <p className="truncate" style={{ fontSize: 14, fontWeight: 600, letterSpacing: "-0.005em" }}>
                 {titulo}
               </p>
-              {mostrarChip && <Codigo valor={b.codigo} destaque />}
+              <Codigo valor={b.codigo} destaque />
             </div>
             <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
               {casa && <IconeCasa casa={casa} size={13} radius={3} />}
@@ -208,7 +206,7 @@ export default function BetRow({ b, casas, users, first, setModalAposta, mudarSt
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <p className="truncate" style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>{titulo}</p>
-                {mostrarChip && <Codigo valor={b.codigo} copiavel={false} size={11} />}
+                <Codigo valor={b.codigo} copiavel={false} size={11} />
               </div>
               <div className="flex items-baseline justify-between">
                 <span style={{ fontSize: 12.5, color: C.muted }}>Impacto no dia</span>
@@ -262,7 +260,7 @@ export default function BetRow({ b, casas, users, first, setModalAposta, mudarSt
           detalhe={
             <div className="flex items-center gap-2">
               <p className="truncate flex-1" style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>{titulo}</p>
-              {mostrarChip && <Codigo valor={b.codigo} copiavel={false} size={11} />}
+              <Codigo valor={b.codigo} copiavel={false} size={11} />
             </div>
           }
         />

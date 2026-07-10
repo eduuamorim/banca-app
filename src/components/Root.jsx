@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { Gauge, Receipt, PieChart, Building2, Settings, Plus, Check, LogOut, Wallet } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { C } from "@/lib/ui";
-import { hoje, brl, sgn, lucro, fechada, betFromRow, betToInsert, betToUpdate, cfgFromRow, cfgToRow, movFromRow, movToInsert, movToUpdate, totalPorTipo, n } from "@/lib/calc";
+import { hoje, brl, sgn, lucro, fechada, betFromRow, betToInsert, betToUpdate, cfgFromRow, cfgToRow, movFromRow, movToInsert, movToUpdate, contaFromRow, contaToInsert, contaToUpdate, totalPorTipo, n } from "@/lib/calc";
 
 import Login from "./Login";
 import Painel from "./Painel";
@@ -23,6 +23,7 @@ export default function Root() {
   const [casas, setCasas] = useState([]);
   const [users, setUsers] = useState([]);
   const [movs, setMovs] = useState([]);
+  const [contas, setContas] = useState([]);
 
   const [tab, setTab] = useState("painel");
   const [dia, setDia] = useState(hoje());
@@ -45,18 +46,20 @@ export default function Root() {
 
   // ── carregar tudo ──
   const carregar = useCallback(async () => {
-    const [c, p, ca, ap, mv] = await Promise.all([
+    const [c, p, ca, ap, mv, ct] = await Promise.all([
       supabase.from("config").select("*").eq("id", 1).single(),
       supabase.from("profiles").select("*").order("criado_em"),
       supabase.from("casas").select("*").order("nome"),
       supabase.from("apostas").select("*").order("data", { ascending: false }).order("criado_em", { ascending: false }),
       supabase.from("movimentos").select("*").order("data", { ascending: false }).order("criado_em", { ascending: false }),
+      supabase.from("contas").select("*").order("criado_em"),
     ]);
     if (c.data) setCfg(cfgFromRow(c.data));
     if (p.data) setUsers(p.data);
     if (ca.data) setCasas(ca.data);
     if (ap.data) setBets(ap.data.map(betFromRow));
     if (mv.data) setMovs(mv.data.map(movFromRow));
+    if (ct.data) setContas(ct.data.map(contaFromRow));
     setCarregado(true);
   }, []);
 
@@ -67,6 +70,7 @@ export default function Root() {
       .channel("banca")
       .on("postgres_changes", { event: "*", schema: "public", table: "apostas" }, carregar)
       .on("postgres_changes", { event: "*", schema: "public", table: "movimentos" }, carregar)
+      .on("postgres_changes", { event: "*", schema: "public", table: "contas" }, carregar)
       .subscribe();
     return () => supabase.removeChannel(canal);
   }, [sessao, carregar]);
@@ -114,7 +118,7 @@ export default function Root() {
 
   const salvarCasa = async (c) => {
     const existe = casas.some((x) => x.id === c.id);
-    const linha = { nome: c.nome, url: c.url, icone: c.icone || "", login: c.login, senha: c.senha, obs: c.obs };
+    const linha = { nome: c.nome, url: c.url, icone: c.icone || "", obs: c.obs || "" };
     const { error } = existe
       ? await supabase.from("casas").update(linha).eq("id", c.id)
       : await supabase.from("casas").insert(linha);
@@ -127,6 +131,23 @@ export default function Root() {
     const { error } = await supabase.from("casas").delete().eq("id", id);
     if (error) return flash("Erro ao excluir.");
     flash("Casa excluída");
+    carregar();
+  };
+
+  const salvarConta = async (c) => {
+    const existe = contas.some((x) => x.id === c.id);
+    const { error } = existe
+      ? await supabase.from("contas").update(contaToUpdate(c)).eq("id", c.id)
+      : await supabase.from("contas").insert(contaToInsert(c, meId));
+    if (error) return flash("Erro ao salvar o acesso.");
+    flash(existe ? "Acesso atualizado" : "Acesso cadastrado");
+    carregar();
+  };
+
+  const excluirConta = async (id) => {
+    const { error } = await supabase.from("contas").delete().eq("id", id);
+    if (error) return flash("Erro ao excluir.");
+    flash("Acesso excluído");
     carregar();
   };
 
@@ -175,10 +196,10 @@ export default function Root() {
   ];
 
   const ctx = {
-    cfg, salvarCfg, bets, casas, users, movs, me, meta, stop, valorStake, flash, dia, setDia,
+    cfg, salvarCfg, bets, casas, contas, users, movs, me, meta, stop, valorStake, flash, dia, setDia,
     doDia, lucroDia, lucroTotal, depositado, sacado,
     setModalAposta, salvarAposta, mudarStatus, excluirAposta,
-    salvarCasa, excluirCasa, salvarMov, excluirMov, sair, sessao,
+    salvarCasa, excluirCasa, salvarConta, excluirConta, salvarMov, excluirMov, sair, sessao,
   };
 
   return (

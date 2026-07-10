@@ -9,7 +9,7 @@ import {
   Modal, Label, Confirmar, IconeCasa, Avatar, Aviso,
 } from "@/lib/ui";
 import {
-  uid, n, brl, sgn, dBR, hoje, TIPOS,
+  uid, n, brl, sgn, dBR, hoje, TIPOS, nomeDaConta,
   totalPorTipo, saldoMovimentos, caixaPorCasa,
 } from "@/lib/calc";
 
@@ -29,12 +29,12 @@ const PERIODOS = [
 const METODOS = ["PIX", "Cartão", "Boleto", "Transferência", "Outro"];
 
 const VAZIO = {
-  busca: "", usuario: "", tipo: "", casa: "", metodo: "",
+  busca: "", usuario: "", tipo: "", casa: "", conta: "", metodo: "",
   de: "", ate: "", valorMin: "", valorMax: "", periodo: "tudo",
 };
 
 export default function Caixa(p) {
-  const { movs, casas, users, bets, me, salvarMov, excluirMov, flash } = p;
+  const { movs, casas, contas, users, bets, me, salvarMov, excluirMov, flash } = p;
   const [f, setF] = useState(VAZIO);
   const [avancado, setAvancado] = useState(false);
   const [modal, setModal] = useState(null);
@@ -64,6 +64,7 @@ export default function Caixa(p) {
         if (f.usuario && m.usuarioId !== f.usuario) return false;
         if (f.tipo && m.tipo !== f.tipo) return false;
         if (f.casa && m.casaId !== f.casa) return false;
+        if (f.conta && m.contaId !== f.conta) return false;
         if (f.metodo && m.metodo !== f.metodo) return false;
         if (f.de && m.data < f.de) return false;
         if (f.ate && m.data > f.ate) return false;
@@ -72,13 +73,14 @@ export default function Caixa(p) {
         if (termo) {
           const casa = casas.find((c) => c.id === m.casaId)?.nome || "";
           const user = users.find((u) => u.id === m.usuarioId)?.nome || "";
-          const alvo = `${casa} ${user} ${m.metodo} ${m.obs}`.toLowerCase();
+          const conta = nomeDaConta(contas.find((c) => c.id === m.contaId));
+          const alvo = `${casa} ${user} ${conta} ${m.metodo} ${m.obs}`.toLowerCase();
           if (!alvo.includes(termo)) return false;
         }
         return true;
       })
       .sort((a, b) => (b.data + b.id).localeCompare(a.data + a.id));
-  }, [movs, casas, users, f]);
+  }, [movs, casas, contas, users, f]);
 
   const dep = totalPorTipo(lista, "deposito");
   const saq = totalPorTipo(lista, "saque");
@@ -98,7 +100,7 @@ export default function Caixa(p) {
   const abrirNovo = (tipo) =>
     setModal({
       id: uid(), novo: true, tipo, data: hoje(),
-      usuarioId: me.id, casaId: casas[0]?.id || "",
+      usuarioId: me.id, casaId: casas[0]?.id || "", contaId: "",
       valor: "", metodo: "PIX", obs: "",
     });
 
@@ -254,6 +256,15 @@ export default function Caixa(p) {
                 {METODOS.map((m) => <option key={m} value={m}>{m}</option>)}
               </Select>
             </div>
+            {contas.length > 0 && (
+              <Select value={f.conta} onChange={(e) => set("conta", e.target.value)}>
+                <option value="">Todas as contas</option>
+                {contas.map((c) => {
+                  const casa = casas.find((x) => x.id === c.casaId);
+                  return <option key={c.id} value={c.id}>{casa?.nome} · {nomeDaConta(c)}</option>;
+                })}
+              </Select>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <p className="mb-1.5" style={{ fontSize: 11, fontWeight: 600, letterSpacing: ".04em", textTransform: "uppercase", color: C.muted }}>Período</p>
@@ -308,7 +319,7 @@ export default function Caixa(p) {
               </div>
               <Card pad={false}>
                 {arr.map((m, i) => (
-                  <Linha key={m.id} m={m} casas={casas} users={users} first={i === 0}
+                  <Linha key={m.id} m={m} casas={casas} contas={contas} users={users} first={i === 0}
                     onEditar={() => setModal({ ...m })} onExcluir={() => setExcluindo(m)} />
                 ))}
               </Card>
@@ -318,7 +329,7 @@ export default function Caixa(p) {
       )}
 
       {modal && (
-        <MovModal modal={modal} setModal={setModal} casas={casas} users={users} me={me} salvarMov={salvarMov} />
+        <MovModal modal={modal} setModal={setModal} casas={casas} contas={contas} users={users} me={me} salvarMov={salvarMov} />
       )}
 
       {excluindo && (
@@ -349,8 +360,9 @@ export default function Caixa(p) {
 
 /* ── uma linha do extrato ── */
 
-function Linha({ m, casas, users, first, onEditar, onExcluir }) {
+function Linha({ m, casas, contas, users, first, onEditar, onExcluir }) {
   const casa = casas.find((c) => c.id === m.casaId);
+  const conta = contas.find((c) => c.id === m.contaId);
   const u = users.find((x) => x.id === m.usuarioId);
   const dep = m.tipo === "deposito";
   const cor = dep ? C.green : C.red;
@@ -371,13 +383,16 @@ function Linha({ m, casas, users, first, onEditar, onExcluir }) {
               {casa.nome}
             </a>
           ) : (
-            <p className="truncate" style={{ fontSize: 14.5, fontWeight: 500 }}>{casa?.nome || "\u2014"}</p>
+            <p className="truncate" style={{ fontSize: 14.5, fontWeight: 500, color: casa ? C.ink : C.faint }}>
+              {casa?.nome || "Casa excluída"}
+            </p>
           )}
         </div>
         <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
           <Avatar user={u} size={14} />
           <p className="num truncate" style={{ fontSize: 12.5, color: C.muted }}>
             {u?.nome || "\u2014"}
+            {conta && ` · ${nomeDaConta(conta)}`}
             {m.metodo && ` · ${m.metodo}`}
             {m.obs && ` · ${m.obs}`}
           </p>
@@ -396,13 +411,18 @@ function Linha({ m, casas, users, first, onEditar, onExcluir }) {
 
 /* ── cadastro ── */
 
-function MovModal({ modal, setModal, casas, users, me, salvarMov }) {
+function MovModal({ modal, setModal, casas, contas, users, me, salvarMov }) {
   const [f, setF] = useState(modal);
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
 
   const dep = f.tipo === "deposito";
   const dono = users.find((u) => u.id === f.usuarioId);
   const ok = n(f.valor) > 0 && f.casaId;
+
+  // Só as contas da casa escolhida. Trocar de casa limpa a conta.
+  const contasDaCasa = contas.filter((c) => c.casaId === f.casaId);
+
+  const trocarCasa = (id) => setF((p) => ({ ...p, casaId: id, contaId: "" }));
 
   return (
     <Modal onClose={() => setModal(null)}
@@ -445,9 +465,45 @@ function MovModal({ modal, setModal, casas, users, me, salvarMov }) {
         </div>
 
         <div><Label>Casa de aposta</Label>
-          <SelectCasa casas={casas} valor={f.casaId} onChange={(id) => set("casaId", id)}
+          <SelectCasa casas={casas} valor={f.casaId} onChange={trocarCasa}
             permitirVazio={false} rotuloVazio="Selecione" />
         </div>
+
+        {contasDaCasa.length > 0 && (
+          <div><Label>Conta</Label>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => set("contaId", "")}
+                className="px-3 py-2 rounded-lg"
+                style={{
+                  fontSize: 13, fontWeight: !f.contaId ? 600 : 400,
+                  color: !f.contaId ? C.greenDeep : C.body,
+                  background: !f.contaId ? C.greenSoft : C.card,
+                  border: `1px solid ${!f.contaId ? C.greenBand : C.line}`,
+                  transition: "all .13s ease",
+                }}>
+                Não informar
+              </button>
+              {contasDaCasa.map((c) => {
+                const on = f.contaId === c.id;
+                const dono = users.find((u) => u.id === c.usuarioId);
+                return (
+                  <button key={c.id} type="button" onClick={() => set("contaId", c.id)}
+                    className="px-3 py-2 rounded-lg inline-flex items-center gap-2"
+                    style={{
+                      fontSize: 13, fontWeight: on ? 600 : 400,
+                      color: on ? C.greenDeep : C.body,
+                      background: on ? C.greenSoft : C.card,
+                      border: `1px solid ${on ? C.greenBand : C.line}`,
+                      transition: "all .13s ease",
+                    }}>
+                    <Avatar user={dono} size={16} />
+                    {nomeDaConta(c)}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div><Label>Método</Label>
           <div className="flex flex-wrap gap-2">

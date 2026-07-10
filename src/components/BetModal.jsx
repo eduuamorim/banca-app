@@ -284,9 +284,10 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
           />
           <p className="mt-1.5" style={{ fontSize: 12, color: C.faint }}>
             Aparece na lista como{" "}
-            <b className="num" style={{ color: C.body, letterSpacing: ".01em" }}>
-              {tituloAposta({ ...f, nome: nomeDoEvento(f.evento), codigo: f.codigo || "K3F9" })}
+            <b style={{ color: C.body }}>
+              {tituloAposta({ nome: nomeDoEvento(f.evento), evento: f.evento })}
             </b>
+            {f.codigo && <>, com o código <b style={{ color: C.body }}>#{f.codigo}</b> ao lado</>}
           </p>
         </div>
 

@@ -109,38 +109,42 @@ export const faviconDe = (url, tamanho = 64) => {
 /* ══════════════════════════════════════════════════
    NOME DA APOSTA NA TELA
 
-   Tudo em MAIÚSCULAS. Só na exibição: o banco guarda
-   o texto como você digitou.
+   O nome e o código são coisas SEPARADAS.
 
-   Sem evento, o nome é o próprio código: APOSTA #S5NU
-   O "#" é enfeite de tela. Ele nunca entra no banco
-   e nunca vai junto ao copiar.
+   - Nome:   texto livre, editável, vem do evento.
+             Sem evento, é apenas "APOSTA".
+   - Código: chip próprio, imutável, sempre ao lado.
+
+   Um nunca entra dentro do outro.
+
+   Maiúsculas só na exibição. O banco guarda o texto
+   como você digitou.
 ══════════════════════════════════════════════════ */
 
-/** "APOSTA #S5NU" quando não há evento. */
-export const nomePadrao = (codigo) => (codigo ? `APOSTA #${codigo}` : "APOSTA");
+/** O nome quando não há evento. Nunca inclui o código. */
+export const nomePadrao = () => "APOSTA";
 
 /**
- * O título que aparece na lista, no modal e nas confirmações.
+ * O nome que aparece na lista, no modal e nas confirmações.
  * Uma função só, para as telas nunca divergirem.
  *
- * Apostas antigas foram gravadas como "Aposta LX8Z", sem o "#".
- * Aqui elas aparecem como "APOSTA #LX8Z", igual às novas, sem
- * precisar mexer no banco.
+ * Apostas antigas foram gravadas como "Aposta LX8Z", com o
+ * código grudado no nome. Aqui esse resíduo é removido: o
+ * código tem o chip dele.
  */
 export const tituloAposta = (b) => {
-  if (!b) return "";
+  if (!b) return nomePadrao();
 
-  const base = (b.nome || nomeDoEvento(b.evento) || "").trim();
-  if (!base) return nomePadrao(b.codigo);
+  let base = (b.nome || nomeDoEvento(b.evento) || "").trim();
+  if (!base) return nomePadrao();
 
-  // "Aposta LX8Z" ou "APOSTA LX8Z" -> vira o padrão com "#"
+  // Limpa o código que versões antigas grudaram no nome:
+  // "Aposta LX8Z", "APOSTA #LX8Z" -> "APOSTA"
   if (b.codigo) {
-    const semAcento = base.toUpperCase();
-    if (semAcento === `APOSTA ${b.codigo}` || semAcento === `APOSTA #${b.codigo}`) {
-      return nomePadrao(b.codigo);
-    }
+    const limpo = base.toUpperCase().replace(/^APOSTA\s+#?/, "");
+    if (limpo === b.codigo.toUpperCase()) return nomePadrao();
   }
+
   return base.toUpperCase();
 };
 
@@ -208,7 +212,8 @@ export const TIPOS = {
 export const movFromRow = (r) => ({
   id: r.id,
   usuarioId: r.usuario_id,
-  casaId: r.casa_id,
+  casaId: r.casa_id || "",          // vazio se a casa foi excluída
+  contaId: r.conta_id || "",
   tipo: r.tipo,
   valor: Number(r.valor),
   data: r.data,
@@ -218,7 +223,8 @@ export const movFromRow = (r) => ({
 
 export const movToInsert = (m, usuarioId) => ({
   usuario_id: m.usuarioId || usuarioId,
-  casa_id: m.casaId,
+  casa_id: m.casaId || null,
+  conta_id: m.contaId || null,
   tipo: m.tipo,
   valor: n(m.valor),
   data: m.data,
@@ -228,13 +234,54 @@ export const movToInsert = (m, usuarioId) => ({
 
 /** Não inclui usuario_id: o dono nunca muda. O banco também recusa. */
 export const movToUpdate = (m) => ({
-  casa_id: m.casaId,
+  casa_id: m.casaId || null,
+  conta_id: m.contaId || null,
   tipo: m.tipo,
   valor: n(m.valor),
   data: m.data,
   metodo: m.metodo || "",
   obs: m.obs || "",
 });
+
+/* ══════════════════════════════════════════════════
+   CONTAS DE ACESSO
+
+   Uma casa pode ter várias. Cada conta pertence a quem
+   a cadastrou, e o dono nunca muda.
+══════════════════════════════════════════════════ */
+
+export const contaFromRow = (r) => ({
+  id: r.id,
+  casaId: r.casa_id,
+  usuarioId: r.usuario_id,
+  apelido: r.apelido || "",
+  login: r.login || "",
+  senha: r.senha || "",
+  obs: r.obs || "",
+});
+
+export const contaToInsert = (c, usuarioId) => ({
+  casa_id: c.casaId,
+  usuario_id: c.usuarioId || usuarioId,
+  apelido: c.apelido || "",
+  login: c.login || "",
+  senha: c.senha || "",
+  obs: c.obs || "",
+});
+
+/** Sem usuario_id: o dono é imutável. */
+export const contaToUpdate = (c) => ({
+  apelido: c.apelido || "",
+  login: c.login || "",
+  senha: c.senha || "",
+  obs: c.obs || "",
+});
+
+/** "Principal" quando não há apelido, ou o próprio login. */
+export const nomeDaConta = (c) => {
+  if (!c) return "";
+  return c.apelido || c.login || "Conta sem nome";
+};
 
 /** Quanto entrou menos quanto saiu. Positivo = você pôs mais do que tirou. */
 export const saldoMovimentos = (movs) =>

@@ -186,6 +186,70 @@ create trigger ao_atualizar_aposta
 create unique index if not exists apostas_codigo_idx on public.apostas (codigo);
 
 -- ══════════════════════════════════════════════════════════
+--  CONTAS DE ACESSO
+--
+--  Uma casa pode ter várias contas. Cada conta pertence a
+--  quem a cadastrou, e esse dono nunca muda.
+--
+--  As senhas ficam em texto simples, como combinado.
+-- ══════════════════════════════════════════════════════════
+
+create table if not exists public.contas (
+  id          uuid primary key default gen_random_uuid(),
+  casa_id     uuid not null references public.casas(id) on delete cascade,
+  usuario_id  uuid not null references public.profiles(id) on delete cascade,
+  apelido     text not null default '',
+  login       text not null default '',
+  senha       text not null default '',
+  obs         text not null default '',
+  criado_em   timestamptz not null default now()
+);
+
+create index if not exists contas_casa_idx on public.contas (casa_id);
+create index if not exists contas_usuario_idx on public.contas (usuario_id);
+
+-- O dono da conta nunca muda
+create or replace function public.travar_dono_conta()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.usuario_id is distinct from old.usuario_id then
+    raise exception 'A conta não pode trocar de dono.';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists ao_atualizar_conta on public.contas;
+create trigger ao_atualizar_conta
+  before update on public.contas
+  for each row execute function public.travar_dono_conta();
+
+-- ── Migração das casas antigas ──
+-- Quem já tinha login e senha na casa ganha uma conta com eles.
+-- Roda uma vez só: a segunda vez não encontra nada.
+do $$
+declare
+  c record;
+  dono uuid;
+begin
+  -- o primeiro perfil criado vira dono das contas migradas
+  select id into dono from public.profiles order by criado_em limit 1;
+  if dono is null then return; end if;
+
+  for c in
+    select id, login, senha, obs from public.casas
+     where (coalesce(login, '') <> '' or coalesce(senha, '') <> '')
+       and not exists (select 1 from public.contas where casa_id = casas.id)
+  loop
+    insert into public.contas (casa_id, usuario_id, apelido, login, senha, obs)
+    values (c.id, dono, 'Principal', coalesce(c.login, ''), coalesce(c.senha, ''), coalesce(c.obs, ''));
+  end loop;
+end
+$$;
+
+-- ══════════════════════════════════════════════════════════
 --  DEPÓSITOS E SAQUES
 --
 --  Movimento de caixa entre você e as casas de aposta.
@@ -196,7 +260,9 @@ create unique index if not exists apostas_codigo_idx on public.apostas (codigo);
 create table if not exists public.movimentos (
   id          uuid primary key default gen_random_uuid(),
   usuario_id  uuid not null references public.profiles(id) on delete cascade,
-  casa_id     uuid not null references public.casas(id) on delete cascade,
+  -- Um depósito é um fato financeiro. Apagar a casa não apaga o histórico:
+  -- o movimento sobrevive, apenas sem casa. Igual às apostas.
+  casa_id     uuid references public.casas(id) on delete set null,
   tipo        text not null,
   valor       numeric not null,
   data        date not null default current_date,
@@ -206,6 +272,46 @@ create table if not exists public.movimentos (
   constraint tipo_valido  check (tipo in ('deposito','saque')),
   constraint valor_positivo check (valor > 0)
 );
+
+-- Em qual conta o dinheiro entrou ou saiu. Opcional.
+alter table public.movimentos add column if not exists conta_id uuid references public.contas(id) on delete set null;
+
+-- ── Correção para quem criou a tabela na versão anterior ──
+-- Lá, apagar a casa apagava os movimentos dela. Não deve.
+-- Aqui a regra vira "set null": o histórico financeiro sobrevive.
+do $$
+declare
+  nome_fk text;
+begin
+  -- só mexe se a coluna ainda for obrigatória
+  if exists (
+    select 1 from information_schema.columns
+     where table_schema = 'public' and table_name = 'movimentos'
+       and column_name = 'casa_id' and is_nullable = 'NO'
+  ) then
+    alter table public.movimentos alter column casa_id drop not null;
+  end if;
+
+  -- troca a chave estrangeira de CASCADE para SET NULL
+  select tc.constraint_name into nome_fk
+    from information_schema.table_constraints tc
+    join information_schema.key_column_usage kcu
+      on kcu.constraint_name = tc.constraint_name
+   where tc.table_schema = 'public'
+     and tc.table_name = 'movimentos'
+     and tc.constraint_type = 'FOREIGN KEY'
+     and kcu.column_name = 'casa_id'
+   limit 1;
+
+  if nome_fk is not null then
+    execute format('alter table public.movimentos drop constraint %I', nome_fk);
+  end if;
+
+  alter table public.movimentos
+    add constraint movimentos_casa_id_fkey
+    foreign key (casa_id) references public.casas(id) on delete set null;
+end
+$$;
 
 create index if not exists movimentos_data_idx on public.movimentos (data desc);
 create index if not exists movimentos_casa_idx on public.movimentos (casa_id);
@@ -268,6 +374,7 @@ alter table public.profiles   enable row level security;
 alter table public.config     enable row level security;
 alter table public.casas      enable row level security;
 alter table public.apostas    enable row level security;
+alter table public.contas     enable row level security;
 alter table public.movimentos enable row level security;
 
 -- PROFILES
@@ -310,6 +417,23 @@ drop policy if exists ap_excluir on public.apostas;
 create policy ap_excluir on public.apostas
   for delete to authenticated using (true);
 
+-- CONTAS
+drop policy if exists ct_ler on public.contas;
+create policy ct_ler on public.contas
+  for select to authenticated using (true);
+
+drop policy if exists ct_inserir on public.contas;
+create policy ct_inserir on public.contas
+  for insert to authenticated with check (auth.uid() = usuario_id);
+
+drop policy if exists ct_editar on public.contas;
+create policy ct_editar on public.contas
+  for update to authenticated using (true) with check (true);
+
+drop policy if exists ct_excluir on public.contas;
+create policy ct_excluir on public.contas
+  for delete to authenticated using (true);
+
 -- MOVIMENTOS
 drop policy if exists mv_ler on public.movimentos;
 create policy mv_ler on public.movimentos
@@ -340,7 +464,7 @@ do $$
 declare
   t text;
 begin
-  foreach t in array array['apostas', 'movimentos'] loop
+  foreach t in array array['apostas', 'movimentos', 'contas'] loop
     if not exists (
       select 1 from pg_publication_tables
       where pubname = 'supabase_realtime'

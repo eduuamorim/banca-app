@@ -151,6 +151,26 @@ export function Pill({ status }) {
 /* ─────────── código curto da aposta ─────────── */
 
 /**
+ * Copia um texto sem depender de HTTPS nem de permissão.
+ * Devolve true se deu certo.
+ */
+export function copiarTexto(texto) {
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = texto;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * O código da aposta. Mostra "#S5NU", copia só "S5NU".
  *
  * O "#" é enfeite. Ele não faz parte do código, não vai
@@ -164,14 +184,10 @@ export function Codigo({ valor, size = 11.5, copiavel = true, destaque }) {
 
   const copiar = (e) => {
     e.stopPropagation();
-    const ta = document.createElement("textarea");
-    ta.value = valor;                       // sem o "#"
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand("copy");
-    document.body.removeChild(ta);
-    setCopiado(true);
-    setTimeout(() => setCopiado(false), 1400);
+    if (copiarTexto(valor)) {               // sem o "#"
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 1400);
+    }
   };
 
   const cor = copiado ? C.greenDeep : destaque ? C.body : C.muted;
