@@ -1,8 +1,8 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Link2, ImagePlus, Loader2, Sparkles, AlertTriangle, X, Wand2, Cpu, Lock } from "lucide-react";
+import { Link2, ImagePlus, Loader2, Sparkles, AlertTriangle, X, Wand2, Cpu } from "lucide-react";
 import { C, Modal, Input, Select, Label, Btn, ST, Codigo, IconeCasa, Aviso, Avatar } from "@/lib/ui";
-import { uid, hoje, n, brl, sgn, nomeDoEvento, nomePadrao } from "@/lib/calc";
+import { uid, hoje, n, brl, sgn, nomeDoEvento, tituloAposta } from "@/lib/calc";
 import { lerBilheteNoAparelho, encerrarOcr } from "@/lib/ocrLocal";
 
 /* ═══════════════════════════════════════════════════════
@@ -290,30 +290,17 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
             <span style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: C.muted }}>Evento</span>
             {f.codigo && <Codigo valor={f.codigo} size={11} />}
           </div>
-          {editando ? (
-            <>
-              <div className="flex items-center gap-2 rounded-xl px-3.5"
-                style={{ height: 44, background: C.lineSoft, border: `1.5px solid ${C.line}` }}>
-                <Lock size={14} style={{ color: C.faint }} className="shrink-0" />
-                <span className="truncate" style={{ fontSize: 14.5, color: C.body }}>
-                  {f.evento || nomePadrao(f.codigo)}
-                </span>
-              </div>
-              <p className="mt-1.5" style={{ fontSize: 12, color: C.faint }}>
-                O evento e o nome não mudam depois de cadastrada, para a aposta continuar rastreável pelo código.
-              </p>
-            </>
-          ) : (
-            <>
-              <Input value={f.evento} onChange={(e) => set("evento", e.target.value)}
-                placeholder="Flamengo x Palmeiras \u2014 Mais de 1.5 gols" />
-              <p className="mt-1.5" style={{ fontSize: 12, color: C.faint }}>
-                {f.evento
-                  ? <>Vai aparecer na lista como <b style={{ color: C.body }}>{nomeDoEvento(f.evento)}</b></>
-                  : <>Sem evento, ela nasce como <b style={{ color: C.body }}>Aposta + código</b>, tipo Aposta K3F9</>}
-              </p>
-            </>
-          )}
+          <Input
+            value={f.evento}
+            onChange={(e) => set("evento", e.target.value)}
+            placeholder={`Flamengo x Palmeiras — Mais de 1.5 gols`}
+          />
+          <p className="mt-1.5" style={{ fontSize: 12, color: C.faint }}>
+            Aparece na lista como{" "}
+            <b className="num" style={{ color: C.body, letterSpacing: ".01em" }}>
+              {tituloAposta({ ...f, nome: nomeDoEvento(f.evento), codigo: f.codigo || "K3F9" })}
+            </b>
+          </p>
         </div>
 
         <div>
@@ -374,10 +361,15 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
         <div className="flex justify-end gap-2 pt-1">
           <Btn kind="outline" onClick={onClose}>Cancelar</Btn>
           <Btn kind="green" disabled={!ok} onClick={() => {
-            const base = { ...f, valor: n(f.valor), odd: n(f.odd), stakePct: n(f.stakePct) };
-            // Numa aposta nova o nome nasce do evento. Vazio = o banco usa "Aposta " + código.
-            // Editando, nome e evento não são enviados: são imutáveis.
-            salvarAposta(editando ? base : { ...base, nome: nomeDoEvento(f.evento) });
+            // O nome sempre acompanha o evento. Vazio = o banco grava "Aposta " + código.
+            // O código em si nunca é enviado: ele nasce no banco e o banco recusa alterá-lo.
+            salvarAposta({
+              ...f,
+              nome: nomeDoEvento(f.evento),
+              valor: n(f.valor),
+              odd: n(f.odd),
+              stakePct: n(f.stakePct),
+            });
             onClose();
           }}>
             {editando ? "Salvar" : "Registrar aposta"}

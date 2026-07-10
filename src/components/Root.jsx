@@ -1,15 +1,16 @@
 "use client";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { Gauge, Receipt, PieChart, Building2, Settings, Plus, Check, LogOut } from "lucide-react";
+import { Gauge, Receipt, PieChart, Building2, Settings, Plus, Check, LogOut, Wallet } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { C } from "@/lib/ui";
-import { hoje, brl, sgn, lucro, fechada, betFromRow, betToInsert, betToUpdate, cfgFromRow, cfgToRow, n } from "@/lib/calc";
+import { hoje, brl, sgn, lucro, fechada, betFromRow, betToInsert, betToUpdate, cfgFromRow, cfgToRow, movFromRow, movToInsert, movToUpdate, totalPorTipo, n } from "@/lib/calc";
 
 import Login from "./Login";
 import Painel from "./Painel";
 import Apostas from "./Apostas";
 import Relatorio from "./Relatorio";
 import Casas from "./Casas";
+import Caixa from "./Caixa";
 import Ajustes from "./Ajustes";
 import BetModal from "./BetModal";
 
@@ -21,6 +22,7 @@ export default function Root() {
   const [bets, setBets] = useState([]);
   const [casas, setCasas] = useState([]);
   const [users, setUsers] = useState([]);
+  const [movs, setMovs] = useState([]);
 
   const [tab, setTab] = useState("painel");
   const [dia, setDia] = useState(hoje());
@@ -43,16 +45,18 @@ export default function Root() {
 
   // ── carregar tudo ──
   const carregar = useCallback(async () => {
-    const [c, p, ca, ap] = await Promise.all([
+    const [c, p, ca, ap, mv] = await Promise.all([
       supabase.from("config").select("*").eq("id", 1).single(),
       supabase.from("profiles").select("*").order("criado_em"),
       supabase.from("casas").select("*").order("nome"),
       supabase.from("apostas").select("*").order("data", { ascending: false }).order("criado_em", { ascending: false }),
+      supabase.from("movimentos").select("*").order("data", { ascending: false }).order("criado_em", { ascending: false }),
     ]);
     if (c.data) setCfg(cfgFromRow(c.data));
     if (p.data) setUsers(p.data);
     if (ca.data) setCasas(ca.data);
     if (ap.data) setBets(ap.data.map(betFromRow));
+    if (mv.data) setMovs(mv.data.map(movFromRow));
     setCarregado(true);
   }, []);
 
@@ -62,6 +66,7 @@ export default function Root() {
     const canal = supabase
       .channel("banca")
       .on("postgres_changes", { event: "*", schema: "public", table: "apostas" }, carregar)
+      .on("postgres_changes", { event: "*", schema: "public", table: "movimentos" }, carregar)
       .subscribe();
     return () => supabase.removeChannel(canal);
   }, [sessao, carregar]);
@@ -125,6 +130,23 @@ export default function Root() {
     carregar();
   };
 
+  const salvarMov = async (m) => {
+    const existe = movs.some((x) => x.id === m.id);
+    const { error } = existe
+      ? await supabase.from("movimentos").update(movToUpdate(m)).eq("id", m.id)
+      : await supabase.from("movimentos").insert(movToInsert(m, meId));
+    if (error) return flash("Erro ao salvar o movimento.");
+    flash(existe ? "Movimento atualizado" : "Movimento registrado");
+    carregar();
+  };
+
+  const excluirMov = async (id) => {
+    const { error } = await supabase.from("movimentos").delete().eq("id", id);
+    if (error) return flash("Erro ao excluir.");
+    flash("Movimento excluído");
+    carregar();
+  };
+
   const sair = () => supabase.auth.signOut();
 
   // ── derivados ──
@@ -135,6 +157,9 @@ export default function Root() {
   const doDia = useMemo(() => bets.filter((b) => b.data === dia), [bets, dia]);
   const lucroDia = useMemo(() => doDia.filter(fechada).reduce((s, b) => s + lucro(b), 0), [doDia]);
 
+  const depositado = useMemo(() => totalPorTipo(movs, "deposito"), [movs]);
+  const sacado = useMemo(() => totalPorTipo(movs, "saque"), [movs]);
+
   // ── telas de espera ──
   if (sessao === undefined) return <Espera />;
   if (!sessao) return <Login />;
@@ -144,14 +169,16 @@ export default function Root() {
     { id: "painel", label: "Painel", icon: Gauge },
     { id: "apostas", label: "Apostas", icon: Receipt },
     { id: "relatorio", label: "Relatório", icon: PieChart },
+    { id: "caixa", label: "Caixa", icon: Wallet },
     { id: "casas", label: "Casas", icon: Building2 },
     { id: "ajustes", label: "Ajustes", icon: Settings },
   ];
 
   const ctx = {
-    cfg, salvarCfg, bets, casas, users, me, meta, stop, valorStake, flash, dia, setDia,
-    doDia, lucroDia, lucroTotal, setModalAposta, salvarAposta, mudarStatus, excluirAposta,
-    salvarCasa, excluirCasa, sair, sessao,
+    cfg, salvarCfg, bets, casas, users, movs, me, meta, stop, valorStake, flash, dia, setDia,
+    doDia, lucroDia, lucroTotal, depositado, sacado,
+    setModalAposta, salvarAposta, mudarStatus, excluirAposta,
+    salvarCasa, excluirCasa, salvarMov, excluirMov, sair, sessao,
   };
 
   return (
@@ -216,6 +243,7 @@ export default function Root() {
           {tab === "painel" && <Painel {...ctx} />}
           {tab === "apostas" && <Apostas {...ctx} />}
           {tab === "relatorio" && <Relatorio {...ctx} />}
+          {tab === "caixa" && <Caixa {...ctx} />}
           {tab === "casas" && <Casas {...ctx} />}
           {tab === "ajustes" && <Ajustes {...ctx} />}
         </main>
@@ -226,9 +254,13 @@ export default function Root() {
         {nav.map((i) => {
           const on = tab === i.id;
           return (
-            <button key={i.id} onClick={() => setTab(i.id)} className="flex-1 flex flex-col items-center gap-1 py-2.5" style={{ color: on ? C.green : C.faint }}>
-              <i.icon size={19} />
-              <span style={{ fontSize: 10.5, fontWeight: on ? 600 : 400 }}>{i.label}</span>
+            <button key={i.id} onClick={() => setTab(i.id)}
+              className="flex-1 flex flex-col items-center gap-1 py-2.5 min-w-0"
+              style={{ color: on ? C.green : C.faint, transition: "color .13s ease" }}>
+              <i.icon size={18} />
+              <span className="truncate w-full text-center px-0.5" style={{ fontSize: 9.5, fontWeight: on ? 600 : 400 }}>
+                {i.label}
+              </span>
             </button>
           );
         })}

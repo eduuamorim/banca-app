@@ -130,9 +130,10 @@ returns trigger
 language plpgsql
 as $$
 begin
-  if new.codigo is null or new.codigo = '' then
-    new.codigo := public.gerar_codigo();
-  end if;
+  -- O código é SEMPRE gerado aqui. O que vier de fora é descartado.
+  -- Ninguém escolhe o próprio código, nem por engano nem de propósito.
+  new.codigo := public.gerar_codigo();
+
   if new.nome is null or new.nome = '' then
     new.nome := 'Aposta ' || new.codigo;
   end if;
@@ -146,11 +147,11 @@ create trigger ao_inserir_aposta
   for each row execute function public.antes_de_inserir_aposta();
 
 -- ══════════════════════════════════════════════════════════
---  IDENTIDADE DA APOSTA É IMUTÁVEL
+--  O CÓDIGO E O DONO SÃO IMUTÁVEIS
 --
---  Código, nome, evento e dono não mudam depois de criada.
---  Isso mantém a aposta rastreável: o que está na lista é o
---  que foi cadastrado.
+--  O nome e o evento podem ser corrigidos depois. O código,
+--  não: ele é a identidade da aposta, e é por ele que vocês
+--  se referem a ela. O dono também não muda.
 --
 --  Esta regra vive no banco, não na tela. Mesmo que alguém
 --  chame a API direto, o banco recusa a alteração.
@@ -161,18 +162,17 @@ returns trigger
 language plpgsql
 as $$
 begin
-  if new.codigo is distinct from old.codigo then
+  -- Um código que já existe nunca muda. Preencher um que estava
+  -- vazio é permitido: é o que a migração faz nas apostas antigas.
+  if old.codigo is not null and old.codigo <> ''
+     and new.codigo is distinct from old.codigo then
     raise exception 'O código da aposta não pode ser alterado.';
   end if;
-  if new.nome is distinct from old.nome then
-    raise exception 'O nome da aposta não pode ser alterado.';
-  end if;
-  if new.evento is distinct from old.evento then
-    raise exception 'O evento da aposta não pode ser alterado.';
-  end if;
+
   if new.usuario_id is distinct from old.usuario_id then
     raise exception 'A aposta não pode trocar de dono.';
   end if;
+
   return new;
 end;
 $$;
@@ -184,6 +184,50 @@ create trigger ao_atualizar_aposta
 
 -- Garante que dois códigos nunca se repitam
 create unique index if not exists apostas_codigo_idx on public.apostas (codigo);
+
+-- ══════════════════════════════════════════════════════════
+--  DEPÓSITOS E SAQUES
+--
+--  Movimento de caixa entre você e as casas de aposta.
+--  NÃO é lucro. Não entra na meta nem no stop loss.
+--  Serve para saber quanto dinheiro está em cada casa.
+-- ══════════════════════════════════════════════════════════
+
+create table if not exists public.movimentos (
+  id          uuid primary key default gen_random_uuid(),
+  usuario_id  uuid not null references public.profiles(id) on delete cascade,
+  casa_id     uuid not null references public.casas(id) on delete cascade,
+  tipo        text not null,
+  valor       numeric not null,
+  data        date not null default current_date,
+  metodo      text not null default '',
+  obs         text not null default '',
+  criado_em   timestamptz not null default now(),
+  constraint tipo_valido  check (tipo in ('deposito','saque')),
+  constraint valor_positivo check (valor > 0)
+);
+
+create index if not exists movimentos_data_idx on public.movimentos (data desc);
+create index if not exists movimentos_casa_idx on public.movimentos (casa_id);
+create index if not exists movimentos_usuario_idx on public.movimentos (usuario_id);
+
+-- O dono do movimento nunca muda
+create or replace function public.travar_dono_movimento()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.usuario_id is distinct from old.usuario_id then
+    raise exception 'O movimento não pode trocar de dono.';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists ao_atualizar_movimento on public.movimentos;
+create trigger ao_atualizar_movimento
+  before update on public.movimentos
+  for each row execute function public.travar_dono_movimento();
 
 -- ══════════════════════════════════════════════════════════
 --  CRIAÇÃO AUTOMÁTICA DO PERFIL AO CADASTRAR
@@ -220,10 +264,11 @@ create trigger ao_criar_usuario
 --  Ao inserir uma aposta, o dono é sempre quem está logado.
 -- ══════════════════════════════════════════════════════════
 
-alter table public.profiles enable row level security;
-alter table public.config   enable row level security;
-alter table public.casas    enable row level security;
-alter table public.apostas  enable row level security;
+alter table public.profiles   enable row level security;
+alter table public.config     enable row level security;
+alter table public.casas      enable row level security;
+alter table public.apostas    enable row level security;
+alter table public.movimentos enable row level security;
 
 -- PROFILES
 drop policy if exists p_ler on public.profiles;
@@ -265,6 +310,23 @@ drop policy if exists ap_excluir on public.apostas;
 create policy ap_excluir on public.apostas
   for delete to authenticated using (true);
 
+-- MOVIMENTOS
+drop policy if exists mv_ler on public.movimentos;
+create policy mv_ler on public.movimentos
+  for select to authenticated using (true);
+
+drop policy if exists mv_inserir on public.movimentos;
+create policy mv_inserir on public.movimentos
+  for insert to authenticated with check (auth.uid() = usuario_id);
+
+drop policy if exists mv_editar on public.movimentos;
+create policy mv_editar on public.movimentos
+  for update to authenticated using (true) with check (true);
+
+drop policy if exists mv_excluir on public.movimentos;
+create policy mv_excluir on public.movimentos
+  for delete to authenticated using (true);
+
 -- ══════════════════════════════════════════════════════════
 --  ATUALIZAÇÃO EM TEMPO REAL
 --  Faz a aposta que um cadastra aparecer na tela do outro.
@@ -275,14 +337,18 @@ create policy ap_excluir on public.apostas
 -- ══════════════════════════════════════════════════════════
 
 do $$
+declare
+  t text;
 begin
-  if not exists (
-    select 1 from pg_publication_tables
-    where pubname = 'supabase_realtime'
-      and schemaname = 'public'
-      and tablename = 'apostas'
-  ) then
-    alter publication supabase_realtime add table public.apostas;
-  end if;
+  foreach t in array array['apostas', 'movimentos'] loop
+    if not exists (
+      select 1 from pg_publication_tables
+      where pubname = 'supabase_realtime'
+        and schemaname = 'public'
+        and tablename = t
+    ) then
+      execute format('alter publication supabase_realtime add table public.%I', t);
+    end if;
+  end loop;
 end
 $$;

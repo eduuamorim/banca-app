@@ -31,7 +31,7 @@ Não pule passos. Não faça fora de ordem. Se travar, vá até o final do guia,
 
 Se você **já publicou** e está só atualizando, faça duas coisas:
 
-**1. Rode o `schema.sql` de novo.** Ele adiciona as colunas novas (código curto, nome da aposta, ícone da casa) e instala a trava que impede alterar a identidade de uma aposta. Nada é apagado. Suas apostas antigas ganham um código automaticamente.
+**1. Rode o `schema.sql` de novo.** Ele cria a tabela de depósitos e saques, adiciona as colunas novas e instala as travas de segurança. Nada é apagado. Suas apostas antigas ganham um código automaticamente.
 
 **2. Suba os arquivos novos no GitHub.** A Vercel republica sozinha.
 
@@ -604,13 +604,13 @@ Se o evento for **"Flamengo x Palmeiras — Mais de 1.5 gols"**, a aposta aparec
 
 Se o evento ficar vazio, ela nasce como **Aposta K3F9**, usando o código dela.
 
-### Depois de cadastrada, não muda mais
+### O código nunca muda
 
-Ao **editar** uma aposta, o evento aparece com um cadeado. Nome, evento, código e dono ficam congelados.
+Você pode corrigir o evento depois. O nome acompanha.
 
-Você ainda pode mudar a data, a casa, a stake, a odd, o status e a observação.
+Mas o **código** é dela para sempre. E o **dono** também.
 
-Isso não é só uma trava de tela. O banco de dados **recusa** qualquer tentativa de alterar esses quatro campos, mesmo vindo de fora do app. Uma aposta cadastrada continua sendo a mesma aposta, sempre.
+Isso não é só uma trava de tela. O banco de dados **recusa** qualquer tentativa de alterar esses dois campos, mesmo vindo de fora do app.
 
 ## Resolver sem abrir a aposta
 
@@ -646,6 +646,48 @@ Para ver tudo da aposta, clique em qualquer outro ponto da linha.
 No cashout, você digita o valor recebido e vê o resultado calculado na hora, antes de salvar.
 
 Enquanto a aposta está **Aberta**, ela **não entra em nenhum cálculo**.
+
+## A aba Caixa
+
+Aqui você registra o dinheiro que entra e sai das casas.
+
+### Registrar
+
+**1.** Clique em **Depósito** ou **Saque**
+
+**2.** Escolha a casa. Só aparecem as que você cadastrou em **Casas**.
+
+**3.** Digite o valor, escolha o método (PIX, Cartão, Boleto...)
+
+**4.** Salve
+
+O movimento fica automaticamente **no nome de quem está logado**. Igual às apostas.
+
+### Caixa por casa
+
+Uma estimativa de quanto dinheiro está dentro de cada casa agora:
+
+```
+depósitos − saques + lucro das apostas resolvidas naquela casa
+```
+
+Apostas abertas não contam. Elas ainda não mexeram no seu dinheiro.
+
+### 🛑 Depósito e saque não são lucro
+
+Isso é importante. Se você depositar R$ 1.000 hoje, o **resultado do dia continua R$ 0,00**.
+
+Depositar não é ganhar. Sacar não é perder. É o seu dinheiro trocando de lugar.
+
+Por isso a meta de 2% e o stop loss de 3% **ignoram** completamente esses movimentos. Eles medem só o que você ganhou ou perdeu apostando.
+
+O **Painel** mostra o total depositado e sacado num card separado, longe do medidor do dia.
+
+### Filtros
+
+- **Busca** — casa, pessoa, método ou observação
+- **Atalhos** — Tudo · Hoje · 7 dias · 30 dias · Depósitos · Saques
+- **Mais filtros** — usuário, casa, método, intervalo de datas, faixa de valor
 
 ## Buscar e filtrar
 

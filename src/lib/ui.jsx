@@ -150,14 +150,22 @@ export function Pill({ status }) {
 
 /* ─────────── código curto da aposta ─────────── */
 
-export function Codigo({ valor, size = 11.5, copiavel = true }) {
+/**
+ * O código da aposta. Mostra "#S5NU", copia só "S5NU".
+ *
+ * O "#" é enfeite. Ele não faz parte do código, não vai
+ * para a área de transferência, e nunca entra no banco.
+ *
+ * Nunca é editável. É um <span>, não um campo.
+ */
+export function Codigo({ valor, size = 11.5, copiavel = true, destaque }) {
   const [copiado, setCopiado] = useState(false);
   if (!valor) return null;
 
   const copiar = (e) => {
     e.stopPropagation();
     const ta = document.createElement("textarea");
-    ta.value = valor;
+    ta.value = valor;                       // sem o "#"
     document.body.appendChild(ta);
     ta.select();
     document.execCommand("copy");
@@ -166,23 +174,26 @@ export function Codigo({ valor, size = 11.5, copiavel = true }) {
     setTimeout(() => setCopiado(false), 1400);
   };
 
+  const cor = copiado ? C.greenDeep : destaque ? C.body : C.muted;
+  const fundo = copiado ? C.greenSoft : destaque ? "#EDECE6" : C.lineSoft;
+  const borda = copiado ? C.greenBand : C.line;
+
   return (
     <span
       onClick={copiavel ? copiar : undefined}
-      title={copiavel ? "Copiar código" : undefined}
-      className="num inline-flex items-center gap-1 shrink-0"
+      title={copiavel ? `Copiar ${valor}` : undefined}
+      className="num inline-flex items-center gap-1 shrink-0 select-none"
       style={{
-        padding: "2px 6px", borderRadius: 6, fontSize: size, fontWeight: 600,
+        padding: "2px 7px", borderRadius: 6, fontSize: size,
+        fontWeight: destaque ? 700 : 600,
         letterSpacing: ".06em",
-        color: copiado ? C.greenDeep : C.muted,
-        background: copiado ? C.greenSoft : C.lineSoft,
-        border: `1px solid ${copiado ? C.greenBand : C.line}`,
+        color: cor, background: fundo, border: `1px solid ${borda}`,
         cursor: copiavel ? "pointer" : "default",
         transition: "background .13s ease, color .13s ease, border-color .13s ease",
       }}
     >
-      {valor}
-      {copiavel && (copiado ? <Check size={10} /> : <Copy size={10} style={{ opacity: .5 }} />)}
+      <span style={{ opacity: .45 }}>#</span>{valor}
+      {copiavel && (copiado ? <Check size={10} /> : <Copy size={10} style={{ opacity: .45 }} />)}
     </span>
   );
 }

@@ -1,12 +1,12 @@
 "use client";
 import React from "react";
-import { Check, X, ChevronRight, Receipt } from "lucide-react";
-import { C, Card, Label, Input, Empty, Money, Faixa } from "@/lib/ui";
+import { Check, X, ChevronRight, Receipt, ArrowDownLeft, ArrowUpRight } from "lucide-react";
+import { C, Card, Label, Input, Empty, Money, Num, Faixa } from "@/lib/ui";
 import { n, brl, sgn, dBR, hoje, fechada } from "@/lib/calc";
 import BetRow from "./BetRow";
 
 export default function Painel(p) {
-  const { dia, setDia, doDia, lucroDia, meta, stop, cfg, valorStake, casas, users, setModalAposta, mudarStatus, excluirAposta } = p;
+  const { dia, setDia, doDia, lucroDia, meta, stop, cfg, valorStake, casas, users, setModalAposta, mudarStatus, excluirAposta, depositado, sacado } = p;
 
   const abertas = doDia.filter((b) => !fechada(b));
   const seGanhar = lucroDia + abertas.reduce((s, b) => s + n(b.valor) * (n(b.odd) - 1), 0);
@@ -69,6 +69,36 @@ export default function Painel(p) {
           </div>
         )}
       </Card>
+
+      {/* movimento de caixa, separado do lucro */}
+      {(depositado > 0 || sacado > 0) && (
+        <Card>
+          <div className="flex items-baseline justify-between mb-4">
+            <h2 style={{ fontSize: 17, fontWeight: 600 }}>Caixa nas casas</h2>
+            <p style={{ fontSize: 12, color: C.faint }}>não entra na meta do dia</p>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <p className="flex items-center gap-1.5" style={{ fontSize: 11, letterSpacing: ".05em", textTransform: "uppercase", color: C.muted, fontWeight: 600 }}>
+                <ArrowDownLeft size={12} style={{ color: C.green }} /> Depositado
+              </p>
+              <Num size={19} weight={600} color={C.green} style={{ display: "block", marginTop: 4 }}>{brl(depositado)}</Num>
+            </div>
+            <div>
+              <p className="flex items-center gap-1.5" style={{ fontSize: 11, letterSpacing: ".05em", textTransform: "uppercase", color: C.muted, fontWeight: 600 }}>
+                <ArrowUpRight size={12} style={{ color: C.red }} /> Sacado
+              </p>
+              <Num size={19} weight={600} color={C.red} style={{ display: "block", marginTop: 4 }}>{brl(sacado)}</Num>
+            </div>
+            <div>
+              <p style={{ fontSize: 11, letterSpacing: ".05em", textTransform: "uppercase", color: C.muted, fontWeight: 600 }}>Saldo</p>
+              <Num size={19} weight={600} color={C.ink} style={{ display: "block", marginTop: 4 }}>
+                {sgn(depositado - sacado)}
+              </Num>
+            </div>
+          </div>
+        </Card>
+      )}
 
       <div>
         <div className="flex items-baseline justify-between mb-3">
