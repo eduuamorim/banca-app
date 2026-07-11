@@ -22,13 +22,29 @@ export default function Ajustes({ cfg, salvarCfg, users, bets, casas, me, sair }
       <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.03em" }}>Ajustes</h1>
 
       <Card>
+        <div className="flex items-baseline justify-between mb-1">
+          <h2 style={{ fontSize: 17, fontWeight: 600 }}>Dinheiro na conta do banco</h2>
+        </div>
+        <p className="mb-4" style={{ fontSize: 13, color: C.muted }}>
+          Quanto você tem parado na sua conta, fora das casas. Entra no Patrimônio, no Painel. Não mexe nas stakes.
+        </p>
+        <div className="sm:max-w-xs">
+          <Label>Saldo na conta</Label>
+          <Input type="number" step="0.01" value={f.saldoBanco ?? ""} onChange={(e) => setF({ ...f, saldoBanco: e.target.value })} placeholder="0,00" />
+          <p className="mt-1.5" style={{ fontSize: 12, color: C.faint }}>
+            Ao depositar numa casa, baixe este valor. Ao sacar, aumente. O Patrimônio total fica igual, o dinheiro só troca de lugar.
+          </p>
+        </div>
+      </Card>
+
+      <Card>
         <h2 className="mb-1" style={{ fontSize: 17, fontWeight: 600 }}>Banca e metas</h2>
         <p className="mb-5" style={{ fontSize: 13, color: C.muted }}>
-          Mudar a banca recalcula meta, stop e todos os stakes. Apostas já registradas mantêm o valor original.
+          A banca é a régua que define stakes e metas. Ela é fixa: só muda quando você mexe aqui. Depósitos e saques não a tocam.
         </p>
 
         <div className="grid sm:grid-cols-3 gap-4">
-          <div><Label>Banca inicial</Label>
+          <div><Label>Banca (régua)</Label>
             <Input type="number" step="0.01" value={f.banca} onChange={(e) => setF({ ...f, banca: e.target.value })} />
           </div>
           <div><Label>Meta de lucro %</Label>

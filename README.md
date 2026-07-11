@@ -31,7 +31,7 @@ Não pule passos. Não faça fora de ordem. Se travar, vá até o final do guia,
 
 Se você **já publicou** e está só atualizando, faça duas coisas:
 
-**1. Rode o `schema.sql` de novo.** Ele cria a tabela de depósitos e saques, adiciona as colunas novas e instala as travas de segurança. Nada é apagado. Suas apostas antigas ganham um código automaticamente.
+**1. Rode o `schema.sql` de novo.** Ele cria a tabela de contas de acesso, adiciona o saldo do banco e instala as travas de segurança. Nada é apagado. Seus logins viram uma conta "Principal" em cada casa.
 
 **2. Suba os arquivos novos no GitHub.** A Vercel republica sozinha.
 
@@ -646,6 +646,30 @@ Para ver tudo da aposta, clique em qualquer outro ponto da linha.
 No cashout, você digita o valor recebido e vê o resultado calculado na hora, antes de salvar.
 
 Enquanto a aposta está **Aberta**, ela **não entra em nenhum cálculo**.
+
+## Banca, Caixa e Patrimônio: três coisas diferentes
+
+Isto é o coração do app. Vale ler devagar.
+
+**A banca** é uma régua. R$ 4.800 que existem só para calcular quanto apostar: stake cheia é 1,75% disso. Ela é fixa. Só muda quando você mexe em Ajustes. Depósito e saque não a tocam. Assim suas stakes e metas ficam estáveis.
+
+**O resultado do dia** é quanto você ganhou ou perdeu apostando. Só isso. Depósito e saque nunca entram aqui.
+
+**O patrimônio** é quanto dinheiro você tem, somando tudo: o que está parado na conta do banco mais o que está em cada casa.
+
+### A ideia que resolve tudo
+
+Quando você tira R$ 50 da conta e deposita numa casa, seu patrimônio **não muda**. O dinheiro só trocou de bolso. Continua seu, só que agora está na casa.
+
+Ele só se move quando você **ganha** (sobe) ou **perde** (cai) uma aposta.
+
+Por isso as três coisas são separadas. Se a banca subisse a cada depósito, suas stakes dançariam o dia todo. Se o depósito contasse como lucro, sua meta viraria mentira.
+
+### Como usar
+
+Em **Ajustes**, informe quanto tem parado na conta do banco. Ao depositar numa casa, baixe esse número. Ao sacar, aumente. O patrimônio total fica igual, porque o dinheiro só andou.
+
+O **Painel** mostra um resumo do patrimônio. A aba **Patrimônio** mostra o detalhe: quanto em cada casa, quanto na conta, e o total.
 
 ## A aba Caixa
 

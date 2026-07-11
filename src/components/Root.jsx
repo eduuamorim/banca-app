@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { Gauge, Receipt, PieChart, Building2, Settings, Plus, Check, LogOut, Wallet } from "lucide-react";
+import { Gauge, Receipt, PieChart, Building2, Settings, Plus, Check, LogOut, Wallet, Landmark } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { C } from "@/lib/ui";
 import { hoje, brl, sgn, lucro, fechada, betFromRow, betToInsert, betToUpdate, cfgFromRow, cfgToRow, movFromRow, movToInsert, movToUpdate, contaFromRow, contaToInsert, contaToUpdate, totalPorTipo, n } from "@/lib/calc";
@@ -11,6 +11,7 @@ import Apostas from "./Apostas";
 import Relatorio from "./Relatorio";
 import Casas from "./Casas";
 import Caixa from "./Caixa";
+import Patrimonio from "./Patrimonio";
 import Ajustes from "./Ajustes";
 import BetModal from "./BetModal";
 
@@ -190,6 +191,7 @@ export default function Root() {
     { id: "painel", label: "Painel", icon: Gauge },
     { id: "apostas", label: "Apostas", icon: Receipt },
     { id: "relatorio", label: "Relatório", icon: PieChart },
+    { id: "patrimonio", label: "Patrimônio", curto: "Patrim.", icon: Landmark },
     { id: "caixa", label: "Caixa", icon: Wallet },
     { id: "casas", label: "Casas", icon: Building2 },
     { id: "ajustes", label: "Ajustes", icon: Settings },
@@ -264,6 +266,7 @@ export default function Root() {
           {tab === "painel" && <Painel {...ctx} />}
           {tab === "apostas" && <Apostas {...ctx} />}
           {tab === "relatorio" && <Relatorio {...ctx} />}
+          {tab === "patrimonio" && <Patrimonio cfg={cfg} casas={casas} movs={movs} bets={bets} modo="completo" />}
           {tab === "caixa" && <Caixa {...ctx} />}
           {tab === "casas" && <Casas {...ctx} />}
           {tab === "ajustes" && <Ajustes {...ctx} />}
@@ -278,9 +281,9 @@ export default function Root() {
             <button key={i.id} onClick={() => setTab(i.id)}
               className="flex-1 flex flex-col items-center gap-1 py-2.5 min-w-0"
               style={{ color: on ? C.green : C.faint, transition: "color .13s ease" }}>
-              <i.icon size={18} />
-              <span className="truncate w-full text-center px-0.5" style={{ fontSize: 9.5, fontWeight: on ? 600 : 400 }}>
-                {i.label}
+              <i.icon size={17} />
+              <span className="truncate w-full text-center" style={{ fontSize: 9, fontWeight: on ? 600 : 400 }}>
+                {i.curto || i.label}
               </span>
             </button>
           );

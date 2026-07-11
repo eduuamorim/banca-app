@@ -185,6 +185,7 @@ export const nomeDoEvento = (evento) => {
 
 export const cfgFromRow = (r) => ({
   banca: Number(r.banca),
+  saldoBanco: Number(r.saldo_banco || 0),
   metaPct: Number(r.meta_pct),
   stopPct: Number(r.stop_pct),
   stakes: r.stakes || [],
@@ -192,6 +193,7 @@ export const cfgFromRow = (r) => ({
 
 export const cfgToRow = (c) => ({
   banca: n(c.banca),
+  saldo_banco: n(c.saldoBanco),
   meta_pct: n(c.metaPct),
   stop_pct: n(c.stopPct),
   stakes: c.stakes.map((s) => ({ ...s, pct: n(s.pct) })),
@@ -305,3 +307,39 @@ export const caixaPorCasa = (casas, movs, bets) =>
     const luc = b.reduce((s, x) => s + lucro(x), 0);
     return { casa: c, dep, saq, luc, caixa: dep - saq + luc, qtd: m.length };
   });
+
+
+/* ══════════════════════════════════════════════════
+   PATRIMÔNIO
+
+   Quanto dinheiro você tem, somando tudo:
+   - o que está parado na conta do banco (você informa)
+   - o que está em cada casa (depósito - saque + lucro)
+
+   A grande ideia: depositar não muda o total, porque o
+   dinheiro só troca de bolso. Só muda quando você ganha
+   ou perde uma aposta.
+
+   Isto é SEPARADO da banca. A banca é a régua fixa que
+   define stakes e metas. O patrimônio sobe e desce.
+══════════════════════════════════════════════════ */
+
+export const patrimonio = (saldoBanco, casas, movs, bets) => {
+  const casasComSaldo = caixaPorCasa(casas, movs, bets);
+  const nasCasas = casasComSaldo.reduce((s, c) => s + c.caixa, 0);
+
+  // Movimentos de casas que foram excluídas ainda contam no dinheiro em jogo.
+  const idsCasas = new Set(casas.map((c) => c.id));
+  const orfaos = movs.filter((m) => !m.casaId || !idsCasas.has(m.casaId));
+  const depOrfao = totalPorTipo(orfaos, "deposito");
+  const saqOrfao = totalPorTipo(orfaos, "saque");
+  const foraDeCasa = depOrfao - saqOrfao;
+
+  return {
+    saldoBanco: n(saldoBanco),
+    nasCasas,
+    foraDeCasa,
+    casas: casasComSaldo.filter((c) => c.qtd > 0 || c.luc !== 0),
+    total: n(saldoBanco) + nasCasas + foraDeCasa,
+  };
+};

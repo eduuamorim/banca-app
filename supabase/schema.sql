@@ -19,6 +19,7 @@ create table if not exists public.profiles (
 create table if not exists public.config (
   id         int primary key default 1,
   banca      numeric not null default 4800,
+  saldo_banco numeric not null default 0,
   meta_pct   numeric not null default 2,
   stop_pct   numeric not null default 3,
   stakes     jsonb   not null default '[
@@ -63,6 +64,7 @@ create table if not exists public.apostas (
 
 -- Colunas novas. O "if not exists" deixa rodar de novo sem erro,
 -- mesmo se você já tinha criado a tabela antes.
+alter table public.config  add column if not exists saldo_banco numeric not null default 0;
 alter table public.apostas add column if not exists codigo text;
 alter table public.apostas add column if not exists nome text not null default '';
 alter table public.casas   add column if not exists icone text not null default '';
