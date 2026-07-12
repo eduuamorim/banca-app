@@ -64,7 +64,8 @@ export default function Apostas(p) {
 
       if (termo) {
         const casa = casas.find((c) => c.id === b.casaId)?.nome || "";
-        const alvo = `${b.codigo} ${b.nome} ${b.evento} ${b.obs} ${casa}`.toLowerCase();
+        const textoPernas = (b.pernas || []).map((x) => `${x.confronto} ${x.mercado} ${x.selecao}`).join(" ");
+        const alvo = `${b.codigo} ${b.nome} ${b.evento} ${textoPernas} ${b.obs} ${casa}`.toLowerCase();
         if (!alvo.includes(termo)) return false;
       }
       return true;

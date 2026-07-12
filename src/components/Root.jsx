@@ -202,6 +202,7 @@ export default function Root() {
     doDia, lucroDia, lucroTotal, depositado, sacado,
     setModalAposta, salvarAposta, mudarStatus, excluirAposta,
     salvarCasa, excluirCasa, salvarConta, excluirConta, salvarMov, excluirMov, sair, sessao,
+    onIrAjustes: () => setTab("ajustes"),
   };
 
   return (

@@ -1,8 +1,8 @@
 "use client";
 import React, { useState } from "react";
-import { ChevronDown, ExternalLink, Pencil, Trash2, Check, X, MoreHorizontal } from "lucide-react";
+import { ChevronDown, ExternalLink, Pencil, Trash2, Check, X, MoreHorizontal, Layers } from "lucide-react";
 import { C, Pill, Btn, Num, Money, Info, Codigo, IconeCasa, Confirmar, Input, Label } from "@/lib/ui";
-import { n, brl, lucro, fechada, tituloAposta } from "@/lib/calc";
+import { n, brl, lucro, fechada, tituloAposta, dataHoraBR, pernasNormalizadas, resumoPerna } from "@/lib/calc";
 
 /* Cada resolução mostra a consequência em reais ANTES de confirmar. */
 const ACOES = {
@@ -52,6 +52,12 @@ export default function BetRow({ b, casas, users, first, setModalAposta, mudarSt
   // Nome e código são coisas separadas. O chip aparece sempre.
   const titulo = tituloAposta(b);
 
+  // As pernas do bilhete. Aposta antiga vira uma perna só.
+  const pernasBilhete = pernasNormalizadas({
+    pernas: b.pernas, evento: b.evento, odd: b.odd,
+  });
+  const multipla = (b.tipo === "multipla") || pernasBilhete.length > 1;
+
   const pedir = (chave) => {
     if (chave === "cashout") setCashout(String(n(b.valor).toFixed(2)));
     setConfirmar(chave);
@@ -72,17 +78,22 @@ export default function BetRow({ b, casas, users, first, setModalAposta, mudarSt
       <div style={{ borderTop: first ? "none" : `1px solid ${C.lineSoft}` }}>
         {/* ── linha ── */}
         <div className="flex items-center gap-3 px-5 py-4 cursor-pointer" onClick={() => setOpen(!open)}
-          style={{ transition: "background .13s ease" }}>
+          style={{ transition: "background .13s ease", background: fechada(b) ? "#FCFCFA" : "transparent" }}>
           <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-            style={{ background: u?.cor || C.line, color: "#fff", fontSize: 12, fontWeight: 600 }}>
+            style={{ background: u?.cor || C.line, color: "#fff", fontSize: 12, fontWeight: 600, opacity: fechada(b) ? 0.75 : 1 }}>
             {u ? u.nome[0].toUpperCase() : "?"}
           </div>
 
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1" style={{ opacity: fechada(b) ? 0.72 : 1 }}>
             <div className="flex items-center gap-2 min-w-0">
               <p className="truncate" style={{ fontSize: 14, fontWeight: 600, letterSpacing: "-0.005em" }}>
                 {titulo}
               </p>
+              {multipla && (
+                <span className="inline-flex items-center gap-0.5 shrink-0 rounded-md px-1.5 py-0.5" style={{ fontSize: 10.5, fontWeight: 700, background: C.blueSoft, color: C.blue }}>
+                  <Layers size={10} />{pernasBilhete.length}
+                </span>
+              )}
               <Codigo valor={b.codigo} destaque />
             </div>
             <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
@@ -149,14 +160,44 @@ export default function BetRow({ b, casas, users, first, setModalAposta, mudarSt
         {/* ── detalhe ── */}
         {open && (
           <div className="anim-detalhe px-5 pb-5" style={{ background: "#FBFBF9" }}>
-            {b.evento && b.evento !== titulo && (
-              <p className="pt-4 pb-1" style={{ fontSize: 13.5, color: C.body }}>{b.evento}</p>
-            )}
+            {/* bilhete: cada seleção como uma perna */}
+            <div className="pt-4">
+              <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.line}`, background: C.card }}>
+                <div className="flex items-center justify-between px-4 py-2.5" style={{ borderBottom: `1px solid ${C.lineSoft}`, background: "#FCFCFA" }}>
+                  <span className="inline-flex items-center gap-1.5" style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: multipla ? C.blue : C.muted }}>
+                    {multipla ? <><Layers size={12} /> Múltipla · {pernasBilhete.length} seleções</> : "Simples"}
+                  </span>
+                  <span className="num" style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>
+                    odd {n(b.odd).toFixed(2)}
+                  </span>
+                </div>
+
+                {pernasBilhete.map((perna, i) => (
+                  <div key={i} className="px-4 py-3" style={{ borderTop: i === 0 ? "none" : `1px solid ${C.lineSoft}` }}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        {perna.confronto && <p style={{ fontSize: 13.5, fontWeight: 600, color: C.ink }}>{perna.confronto}</p>}
+                        {resumoPerna(perna) && <p style={{ fontSize: 12.5, color: C.body }}>{resumoPerna(perna)}</p>}
+                        {perna.dataJogo && <p className="num mt-0.5" style={{ fontSize: 11.5, color: C.faint }}>jogo {dataHoraBR(perna.dataJogo)}</p>}
+                      </div>
+                      {n(perna.odd) > 0 && (
+                        <span className="num shrink-0" style={{ fontSize: 12.5, fontWeight: 600, color: C.body }}>{n(perna.odd).toFixed(2)}</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                <div className="flex items-center justify-between px-4 py-2.5" style={{ borderTop: `1px solid ${C.lineSoft}`, background: "#FCFCFA" }}>
+                  <span style={{ fontSize: 12, color: C.muted }}>Ganho potencial</span>
+                  <span className="num" style={{ fontSize: 14, fontWeight: 700, color: C.greenDeep }}>{brl(n(b.valor) * n(b.odd))}</span>
+                </div>
+              </div>
+            </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-4">
               <Info k="Código" v={<Codigo valor={b.codigo} size={12} />} />
               <Info k="Stake" v={`${Number(b.stakePct).toFixed(2)}%`} />
-              <Info k="Se ganhar volta" v={brl(n(b.valor) * n(b.odd))} />
+              <Info k="Valor apostado" v={brl(n(b.valor))} />
               <Info k="Casa" v={casa ? (
                 <span className="inline-flex items-center gap-1.5">
                   <IconeCasa casa={casa} size={14} radius={3} />
@@ -171,6 +212,8 @@ export default function BetRow({ b, casas, users, first, setModalAposta, mudarSt
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pb-4">
               <Info k="Registrada por" v={u?.nome || "\u2014"} />
+              {b.criadoEm && <Info k="Registrada em" v={dataHoraBR(b.criadoEm)} />}
+              {b.editadoEm && <Info k="Editada em" v={dataHoraBR(b.editadoEm)} />}
               {b.obs && <div className="col-span-2 sm:col-span-3"><Info k="Observação" v={b.obs} /></div>}
             </div>
 

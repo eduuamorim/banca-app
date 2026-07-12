@@ -1,15 +1,30 @@
 "use client";
 import React from "react";
-import { Check, X, ChevronRight, Receipt } from "lucide-react";
+import { Check, X, ChevronRight, Receipt, TrendingUp } from "lucide-react";
 import { C, Card, Label, Input, Empty, Money, Faixa } from "@/lib/ui";
-import { n, brl, sgn, dBR, hoje, fechada } from "@/lib/calc";
+import { n, brl, sgn, dBR, hoje, fechada, patrimonio } from "@/lib/calc";
 import BetRow from "./BetRow";
 import Patrimonio from "./Patrimonio";
 
 export default function Painel(p) {
-  const { dia, setDia, doDia, lucroDia, meta, stop, cfg, valorStake, casas, users, movs, bets, setModalAposta, mudarStatus, excluirAposta, depositado, sacado } = p;
+  const { dia, setDia, doDia, lucroDia, meta, stop, cfg, valorStake, casas, users, movs, bets, setModalAposta, mudarStatus, excluirAposta, depositado, sacado, onIrAjustes } = p;
 
   const abertas = doDia.filter((b) => !fechada(b));
+
+  // Abertas de QUALQUER dia, mais recentes primeiro.
+  const todasAbertas = bets
+    .filter((b) => !fechada(b))
+    .slice()
+    .sort((a, b) => (b.data + (b.criadoEm || "")).localeCompare(a.data + (a.criadoEm || "")));
+
+  // Resolvidas só do dia selecionado.
+  const resolvidasHoje = doDia.filter(fechada);
+
+  // Saldo real e o aviso de divergência com a banca base.
+  const saldoReal = patrimonio(cfg.saldoBanco, casas, movs, bets).total;
+  const divergencia = cfg.banca > 0 ? Math.abs(saldoReal - cfg.banca) / cfg.banca : 0;
+  const avisoBanca = divergencia >= 0.1 && saldoReal > cfg.banca;   // 10% acima
+
   const seGanhar = lucroDia + abertas.reduce((s, b) => s + n(b.valor) * (n(b.odd) - 1), 0);
   const sePerder = lucroDia - abertas.reduce((s, b) => s + n(b.valor), 0);
   const fech = doDia.filter(fechada);
@@ -71,7 +86,26 @@ export default function Painel(p) {
         )}
       </Card>
 
-      {/* patrimônio: banco + casas, separado da meta do dia */}
+      {/* aviso: seu saldo real cresceu bem acima da banca base? */}
+      {avisoBanca && onIrAjustes && (
+        <button onClick={onIrAjustes} className="w-full text-left">
+          <div className="anim-aviso flex items-center gap-3 rounded-2xl px-5 py-4"
+            style={{ background: C.blueSoft, border: `1px solid ${C.blueBand}` }}>
+            <TrendingUp size={20} style={{ color: C.blue }} className="shrink-0" />
+            <div className="min-w-0 flex-1">
+              <p style={{ fontSize: 13.5, fontWeight: 600, color: C.blue }}>
+                Seu saldo real está em {brl(saldoReal)}
+              </p>
+              <p style={{ fontSize: 12.5, color: C.body }}>
+                Sua banca base ainda é {brl(cfg.banca)}. Se quiser apostar proporcional ao novo tamanho, ajuste a base em Ajustes.
+              </p>
+            </div>
+            <ChevronRight size={18} style={{ color: C.blue }} className="shrink-0" />
+          </div>
+        </button>
+      )}
+
+      {/* saldo real: banco + casas, separado da meta do dia */}
       {(cfg.saldoBanco > 0 || depositado > 0 || sacado > 0) && (
         <Patrimonio cfg={cfg} casas={casas} movs={movs} bets={bets} modo="resumo" />
       )}
@@ -96,17 +130,43 @@ export default function Painel(p) {
         </div>
       </div>
 
+      {/* Abertas de qualquer dia, no topo. São o que precisa de atenção. */}
       <div>
-        <h2 className="mb-3" style={{ fontSize: 17, fontWeight: 600 }}>Apostas de {hd ? "hoje" : dBR(dia)}</h2>
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 style={{ fontSize: 17, fontWeight: 600 }}>Em aberto</h2>
+          {todasAbertas.length > 0 && (
+            <span className="num" style={{ fontSize: 12.5, color: C.muted }}>
+              {todasAbertas.length} aposta{todasAbertas.length > 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
         <Card pad={false}>
-          {doDia.length === 0
-            ? <Empty icon={Receipt} title="Dia limpo" hint="Registre uma aposta escolhendo um stake acima." />
-            : doDia.map((b, i) => (
+          {todasAbertas.length === 0
+            ? <Empty icon={Receipt} title="Nenhuma aposta em aberto" hint="Registre uma aposta escolhendo um stake acima." />
+            : todasAbertas.map((b, i) => (
                 <BetRow key={b.id} b={b} casas={casas} users={users} first={i === 0}
                   setModalAposta={setModalAposta} mudarStatus={mudarStatus} excluirAposta={excluirAposta} />
               ))}
         </Card>
       </div>
+
+      {/* Resolvidas de hoje, apagadas embaixo. As de outros dias ficam na aba Apostas. */}
+      {resolvidasHoje.length > 0 && (
+        <div>
+          <div className="flex items-baseline justify-between mb-3">
+            <h2 style={{ fontSize: 17, fontWeight: 600, color: C.muted }}>Resolvidas {hd ? "hoje" : dBR(dia)}</h2>
+            <span className="num" style={{ fontSize: 12.5, color: C.faint }}>
+              {resolvidasHoje.length} · resultado {sgn(lucroDia)}
+            </span>
+          </div>
+          <Card pad={false}>
+            {resolvidasHoje.map((b, i) => (
+              <BetRow key={b.id} b={b} casas={casas} users={users} first={i === 0}
+                setModalAposta={setModalAposta} mudarStatus={mudarStatus} excluirAposta={excluirAposta} />
+            ))}
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

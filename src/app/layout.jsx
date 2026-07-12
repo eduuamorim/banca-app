@@ -9,6 +9,8 @@ export const viewport = {
   themeColor: "#18262B",
   width: "device-width",
   initialScale: 1,
+  maximumScale: 1,     // impede o zoom automático do iOS ao focar um input
+  userScalable: false,
 };
 
 export default function RootLayout({ children }) {

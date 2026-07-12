@@ -1,7 +1,36 @@
 // ── helpers de número, data e dinheiro ──
 
 export const uid = () => Math.random().toString(36).slice(2, 10);
-export const hoje = () => new Date().toISOString().slice(0, 10);
+
+/**
+ * A data de hoje no fuso do aparelho, no formato AAAA-MM-DD.
+ *
+ * NÃO usar toISOString(): ela devolve UTC, então às 21h em Brasília
+ * (UTC−3) já viraria o dia seguinte. Aqui montamos a data a partir
+ * dos componentes locais, então "hoje" é o hoje de quem está olhando.
+ */
+export const hoje = () => dataLocal(new Date());
+
+/** Uma data qualquer no formato AAAA-MM-DD, no fuso local. */
+export const dataLocal = (d) => {
+  const ano = d.getFullYear();
+  const mes = String(d.getMonth() + 1).padStart(2, "0");
+  const dia = String(d.getDate()).padStart(2, "0");
+  return `${ano}-${mes}-${dia}`;
+};
+
+/** Data e hora local: "10/07/2026 às 21h34". Para carimbo de registro. */
+export const dataHoraBR = (iso) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d)) return "";
+  const dia = String(d.getDate()).padStart(2, "0");
+  const mes = String(d.getMonth() + 1).padStart(2, "0");
+  const ano = d.getFullYear();
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${dia}/${mes}/${ano} \u00e0s ${hh}h${mm}`;
+};
 
 export const n = (v) => {
   const x = parseFloat(String(v ?? "").replace(",", "."));
@@ -35,6 +64,8 @@ export const betFromRow = (r) => ({
   id: r.id,
   codigo: r.codigo || "",
   nome: r.nome || "",
+  criadoEm: r.criado_em || null,
+  editadoEm: r.editado_em || null,
   data: r.data,
   usuarioId: r.usuario_id,
   casaId: r.casa_id || "",
@@ -45,25 +76,38 @@ export const betFromRow = (r) => ({
   status: r.status,
   cashoutValor: r.cashout_valor == null ? "" : Number(r.cashout_valor),
   obs: r.obs || "",
+  tipo: r.tipo || "simples",
+  pernas: pernasNormalizadas(r),
+  ganhoPotencial: r.ganho_potencial == null ? null : Number(r.ganho_potencial),
 });
 
 /**
  * Linha para INSERIR uma aposta nova.
  * "nome" vazio faz o banco gravar "Aposta " + código.
  */
-export const betToInsert = (b, usuarioId) => ({
-  usuario_id: b.usuarioId || usuarioId,
-  casa_id: b.casaId || null,
-  data: b.data,
-  nome: b.nome || "",
-  evento: b.evento || "",
-  stake_pct: n(b.stakePct),
-  valor: n(b.valor),
-  odd: n(b.odd),
-  status: b.status,
-  cashout_valor: b.status === "cashout" ? n(b.cashoutValor) : null,
-  obs: b.obs || "",
-});
+export const betToInsert = (b, usuarioId) => {
+  const pernas = pernasLimpas(b);
+  const tipo = pernas.length > 1 ? "multipla" : "simples";
+  // A odd do bilhete é a que veio do print ou que você digitou.
+  // Só cai no produto das pernas se não houver odd informada.
+  const odd = n(b.odd) > 1 ? n(b.odd) : oddTotal(pernas);
+  return {
+    usuario_id: b.usuarioId || usuarioId,
+    casa_id: b.casaId || null,
+    data: b.data,
+    nome: b.nome || "",
+    evento: eventoDasPernas(b, pernas),
+    stake_pct: n(b.stakePct),
+    valor: n(b.valor),
+    odd,
+    status: b.status,
+    cashout_valor: b.status === "cashout" ? n(b.cashoutValor) : null,
+    obs: b.obs || "",
+    tipo,
+    pernas,
+    ganho_potencial: n(b.valor) * odd,
+  };
+};
 
 /**
  * Linha para ATUALIZAR uma aposta existente.
@@ -73,18 +117,26 @@ export const betToInsert = (b, usuarioId) => ({
  * barreira; o banco tem um gatilho que recusa a alteração,
  * mesmo se alguém chamar a API por fora do app.
  */
-export const betToUpdate = (b) => ({
-  casa_id: b.casaId || null,
-  data: b.data,
-  nome: b.nome || "",
-  evento: b.evento || "",
-  stake_pct: n(b.stakePct),
-  valor: n(b.valor),
-  odd: n(b.odd),
-  status: b.status,
-  cashout_valor: b.status === "cashout" ? n(b.cashoutValor) : null,
-  obs: b.obs || "",
-});
+export const betToUpdate = (b) => {
+  const pernas = pernasLimpas(b);
+  const tipo = pernas.length > 1 ? "multipla" : "simples";
+  const odd = n(b.odd) > 1 ? n(b.odd) : oddTotal(pernas);
+  return {
+    casa_id: b.casaId || null,
+    data: b.data,
+    nome: b.nome || "",
+    evento: eventoDasPernas(b, pernas),
+    stake_pct: n(b.stakePct),
+    valor: n(b.valor),
+    odd,
+    status: b.status,
+    cashout_valor: b.status === "cashout" ? n(b.cashoutValor) : null,
+    obs: b.obs || "",
+    tipo,
+    pernas,
+    ganho_potencial: n(b.valor) * odd,
+  };
+};
 
 /* ── ícone da casa a partir do link ── */
 
@@ -181,6 +233,88 @@ export const nomeDoEvento = (evento) => {
   // Sem confronto: primeiro pedaço antes de travessão, barra vertical ou hífen cercado.
   const pedaco = bruto.split(/\s+[\u2014\u2013|]\s+|\s+-\s+/)[0].trim();
   return corta(pedaco || bruto);
+};
+
+/* ══════════════════════════════════════════════════
+   PERNAS DO BILHETE
+
+   Uma aposta simples é uma perna só. Uma múltipla tem
+   várias, e a odd total é o produto das odds.
+
+   Guardamos as pernas como JSON dentro da aposta porque
+   elas sempre viajam junto e são resolvidas em bloco.
+   Cada perna tem: confronto, mercado, seleção, odd, dataJogo.
+══════════════════════════════════════════════════ */
+
+export const pernaVazia = () => ({
+  confronto: "",
+  mercado: "",
+  selecao: "",
+  odd: "",
+  dataJogo: "",
+});
+
+/** A odd total do bilhete: o produto das odds das pernas válidas. */
+export const oddTotal = (pernas) => {
+  const validas = (pernas || []).filter((p) => n(p.odd) > 0);
+  if (!validas.length) return 0;
+  return validas.reduce((a, p) => a * n(p.odd), 1);
+};
+
+/**
+ * As pernas de uma aposta vinda do banco.
+ * Apostas antigas não têm pernas: viram uma perna a partir
+ * do evento e da odd que já estavam salvos.
+ */
+export const pernasNormalizadas = (r) => {
+  const p = r.pernas;
+  if (Array.isArray(p) && p.length) return p;
+  return [{
+    confronto: r.evento || "",
+    mercado: "",
+    selecao: "",
+    odd: r.odd == null ? "" : Number(r.odd),
+    dataJogo: "",
+  }];
+};
+
+/** As pernas de um formulário, sem as vazias, prontas para gravar. */
+export const pernasLimpas = (b) => {
+  const p = Array.isArray(b.pernas) ? b.pernas : [];
+  const validas = p
+    .filter((x) => (x.confronto || "").trim() || (x.selecao || "").trim() || n(x.odd) > 0)
+    .map((x) => ({
+      confronto: (x.confronto || "").trim(),
+      mercado: (x.mercado || "").trim(),
+      selecao: (x.selecao || "").trim(),
+      odd: n(x.odd),
+      dataJogo: x.dataJogo || "",
+    }));
+  // Nenhuma perna preenchida: cai no modo antigo (evento + odd num campo só).
+  if (!validas.length && (b.evento || n(b.odd) > 0)) {
+    return [{ confronto: (b.evento || "").trim(), mercado: "", selecao: "", odd: n(b.odd), dataJogo: "" }];
+  }
+  return validas;
+};
+
+/**
+ * O texto do campo "evento" a partir das pernas.
+ * Mantém compatibilidade: telas e buscas antigas leem "evento".
+ * Simples: o confronto da perna. Múltipla: "Confronto (+N seleções)".
+ */
+export const eventoDasPernas = (b, pernas) => {
+  const ps = pernas || pernasLimpas(b);
+  if (!ps.length) return (b.evento || "").trim();
+  if (ps.length === 1) return ps[0].confronto || (b.evento || "").trim();
+  const primeiro = ps[0].confronto || ps[0].selecao || "Múltipla";
+  return `${primeiro} (+${ps.length - 1})`;
+};
+
+/** Resumo curto de uma perna para a lista: "Mercado · Seleção". */
+export const resumoPerna = (p) => {
+  if (!p) return "";
+  const partes = [p.mercado, p.selecao].map((x) => (x || "").trim()).filter(Boolean);
+  return partes.join(" \u00b7 ");
 };
 
 export const cfgFromRow = (r) => ({

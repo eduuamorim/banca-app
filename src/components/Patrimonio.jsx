@@ -18,7 +18,7 @@ export default function Patrimonio({ cfg, casas, movs, bets, modo = "resumo" }) 
     return (
       <Card>
         <div className="flex items-baseline justify-between mb-4">
-          <h2 style={{ fontSize: 17, fontWeight: 600 }}>Patrimônio</h2>
+          <h2 style={{ fontSize: 17, fontWeight: 600 }}>Saldo real</h2>
           <p style={{ fontSize: 12, color: C.faint }}>banco + casas</p>
         </div>
         <div className="grid grid-cols-3 gap-4">
@@ -38,13 +38,13 @@ export default function Patrimonio({ cfg, casas, movs, bets, modo = "resumo" }) 
     <div className="space-y-5">
       <Card>
         <p style={{ fontSize: 11, letterSpacing: ".05em", textTransform: "uppercase", color: C.muted, fontWeight: 600 }}>
-          Patrimônio total
+          Saldo real
         </p>
         <p className="num mt-1.5" style={{ fontSize: 34, fontWeight: 700, letterSpacing: "-0.03em", color: C.ink }}>
           {brl(p.total)}
         </p>
         <p className="mt-1" style={{ fontSize: 13, color: C.muted }}>
-          Tudo que é seu: {brl(p.saldoBanco)} na conta e {brl(p.nasCasas + p.foraDeCasa)} nas casas.
+          Quanto você tem agora: {brl(p.saldoBanco)} na conta e {brl(p.nasCasas + p.foraDeCasa)} nas casas.
         </p>
 
         <div className="grid grid-cols-2 gap-3 mt-5 pt-5" style={{ borderTop: `1px solid ${C.lineSoft}` }}>
@@ -102,7 +102,7 @@ export default function Patrimonio({ cfg, casas, movs, bets, modo = "resumo" }) 
             <TrendingUp size={17} />
           </div>
           <div>
-            <p style={{ fontSize: 13.5, fontWeight: 600, color: C.ink }}>Depositar não muda seu patrimônio</p>
+            <p style={{ fontSize: 13.5, fontWeight: 600, color: C.ink }}>Depositar não muda seu saldo real</p>
             <p className="mt-1" style={{ fontSize: 13, color: C.body, lineHeight: 1.5 }}>
               Quando você tira da conta e põe numa casa, o total continua igual: o dinheiro só trocou de lugar. Ele só sobe quando você ganha uma aposta, e só cai quando perde. Por isso a banca (a régua das stakes) fica separada, em Ajustes.
             </p>

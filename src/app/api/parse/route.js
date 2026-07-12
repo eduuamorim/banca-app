@@ -23,31 +23,44 @@ function escolherProvedor() {
   return null;
 }
 
-const INSTRUCAO = `Você lê bilhetes de aposta esportiva de casas brasileiras (Bet365, Betano, Superbet, Estrela Bet, Sportingbet, KTO e similares).
+const INSTRUCAO = `Você lê bilhetes de aposta esportiva de casas brasileiras (Bet365, Betano, Superbet, EsportivaBet, Estrela Bet, Sportingbet, KTO, Betnacional, Novibet, Pixbet, Blaze, Vaidebet, McGames, BetMGM, Esportes da Sorte, Bet7k e similares).
 
-Extraia APENAS o evento, a odd e o nome da casa. Ignore valores em reais:
-o quanto foi apostado não interessa e nunca deve ser devolvido.
+Cada casa mostra o bilhete de um jeito, mas todos têm a mesma estrutura: uma ou mais SELEÇÕES (pernas), cada uma com um confronto, um mercado, a escolha e uma odd. Uma aposta simples tem uma perna; uma múltipla tem várias.
+
+Extraia as pernas e o nome da casa. IGNORE valores em reais: o quanto foi apostado, o ganho potencial e o cashout não interessam e nunca devem ser devolvidos.
 
 Devolva SOMENTE um objeto JSON, sem crases, sem markdown, sem texto antes ou depois:
 
 {
   "encontrou": true ou false,
-  "evento": "Time A x Time B — mercado apostado",
-  "odd": número decimal,
   "casa": "nome da casa, se aparecer",
+  "oddTotal": número decimal (a cotação total do bilhete, o número grande que a casa mostra),
+  "pernas": [
+    {
+      "confronto": "Time A x Time B",
+      "mercado": "o mercado, ex: Total de Chutes, Resultado Final, Ambas Marcam",
+      "selecao": "a escolha, ex: Mais de 1.5, Lionel Messi, Sim",
+      "odd": número decimal,
+      "dataJogo": "AAAA-MM-DDTHH:MM se aparecer a data e hora do jogo, senão vazio"
+    }
+  ],
   "confianca": "alta" | "media" | "baixa"
 }
 
 Regras:
-- "evento" começa SEMPRE pelo confronto, depois o mercado, separados por travessão.
-  Certo:  "Flamengo x Palmeiras — Mais de 1.5 gols"
-  Errado: "Mais de 1.5 gols — Flamengo x Palmeiras"
-- Escreva o confronto com " x " entre os times, mesmo que o bilhete use "vs" ou "@".
-- Em múltiplas, use o primeiro confronto e escreva o mercado como "Múltipla de N seleções".
-- "odd" é a cotação total do bilhete. Em múltiplas, a odd combinada.
-- Não devolva o campo "valor". Ele não é usado.
-- Se não for um bilhete de aposta, devolva {"encontrou": false}.
-- Números sempre com ponto decimal, nunca vírgula.`;
+- "oddTotal" e a cotacao total do bilhete EXATAMENTE como a casa mostra, sem recalcular. Esse e o numero mais importante. Cada casa usa um rotulo diferente para ele; procure por qualquer um destes:
+  "Cotacoes totais", "Cotacao total", "Odds totais", "ODDS TOTAIS", "Odd total", "Cotacao", "Total", ou o numero grande ao lado de "Simples", "Multipla", "Combinada", "Criar Aposta" ou "Aposta Criada". Na Bet365 costuma ser o numero a direita do tipo do bilhete. Na Betano aparece como "ODDS TOTAIS". Na EsportivaBet como "Cotacoes totais". Na Superbet e KTO como "Cotacao total" ou perto do retorno possivel.
+- ODD TURBINADA / AUMENTADA / SUPER ODDS: as vezes a casa mostra a odd riscada e uma nova ao lado (ex: "1,45 >> 1,60", ou a antiga com risco). Use SEMPRE a odd NOVA (a maior, a que nao esta riscada). Nunca a riscada.
+- Se houver "Ganho potencial", "Retorno possivel", "Ganhos potenciais" ou "Possivel retorno", esse valor NAO e a odd nem o valor apostado: ignore.
+- "confronto" tem os dois times separados por " x ", mesmo que o bilhete use "vs", "—", "@" ou bandeiras entre os nomes. Se aparecer so um time ou um nome de jogador (mercados de jogador), use o confronto do jogo se estiver visivel; senao, deixe o confronto vazio e ponha o resto em selecao.
+- Separe mercado e selecao quando der. Exemplos: "Total de Desarmes / Ezri Konsa" -> mercado "Total de Desarmes", selecao "Ezri Konsa". "Mais de 1.5 / Suica Total de chutes" -> mercado "Suica Total de chutes", selecao "Mais de 1.5". Se nao der pra separar, ponha tudo em "selecao" e deixe "mercado" vazio.
+- Uma perna por selecao do bilhete. Conte as selecoes: bilhetes multiplos costumam ter um numero visivel ("2+", "1 selecao", "UNICO", "3 selecoes"). Aposta simples: uma perna so, e a odd dela e igual a oddTotal.
+- "odd" de cada perna e a cotacao daquela perna, se o bilhete mostrar (costuma aparecer a direita de cada selecao). Se so a odd total aparecer, deixe a odd das pernas vazia: o que vale e a oddTotal.
+- Numeros sempre com ponto decimal, nunca virgula. "1,60" vira 1.60. "10,72" vira 10.72.
+- "dataJogo": so se a data/hora do jogo aparecer (ex: "11/07 22:00", "Hoje 18:00", "3d"). Formato AAAA-MM-DDTHH:MM. Se disser "Hoje" ou "Amanha" e voce nao souber a data exata, deixe vazio. Nao invente.
+- "casa": use o nome da marca no bilhete (logo ou texto). Ex: "EsportivaBet", "Betano", "bet365", "Superbet". Ignore o endereco do site.
+- Ignore completamente: saldo da conta, valor apostado, ganho potencial, cashout, ID do bilhete, botoes ("Reapostar", "Compartilhar", "Cash Out"), horario de login, barra de status do celular.
+- Se nao for um bilhete de aposta, devolva {"encontrou": false}.`;
 
 /* ─────────── extração de JSON tolerante ─────────── */
 function lerJson(texto) {
@@ -125,6 +138,60 @@ async function perguntarClaude({ texto, imagem, tipo }) {
 const perguntar = (provedor, entrada) =>
   provedor === "gemini" ? perguntarGemini(entrada) : perguntarClaude(entrada);
 
+/**
+ * Padroniza o que a IA devolveu para o formato de pernas que o app usa.
+ * Aceita tanto o formato novo (pernas[]) quanto o antigo (evento + odd),
+ * então continua funcionando se algum provedor responder no modelo velho.
+ */
+function normalizarDados(d) {
+  if (!d || typeof d !== "object") return d;
+
+  const num = (v) => {
+    const x = parseFloat(String(v ?? "").replace(",", "."));
+    return isNaN(x) ? "" : x;
+  };
+
+  let pernas = [];
+  if (Array.isArray(d.pernas) && d.pernas.length) {
+    pernas = d.pernas.map((p) => ({
+      confronto: String(p.confronto || p.evento || "").trim(),
+      mercado: String(p.mercado || "").trim(),
+      selecao: String(p.selecao || "").trim(),
+      odd: num(p.odd),
+      dataJogo: String(p.dataJogo || "").trim(),
+    }));
+  } else if (d.evento || d.odd) {
+    // formato antigo: um evento só
+    pernas = [{
+      confronto: String(d.evento || "").trim(),
+      mercado: "",
+      selecao: "",
+      odd: num(d.odd),
+      dataJogo: "",
+    }];
+  }
+
+  // A odd total que a casa mostra. É o que vale.
+  let oddLida = num(d.oddTotal);
+
+  // Rede de segurança para múltiplas: se a IA leu uma odd total que é
+  // claramente menor que o produto das pernas, provavelmente pegou a odd
+  // de uma perna, ou a odd riscada de uma "turbinada". Nesse caso o
+  // produto é a aposta mais segura. (Só quando há pernas com odd.)
+  const comOdd = pernas.filter((p) => num(p.odd) > 1);
+  if (comOdd.length > 1) {
+    const produto = comOdd.reduce((a, p) => a * num(p.odd), 1);
+    if (!(oddLida > 1) || oddLida < produto * 0.9) {
+      oddLida = Math.round(produto * 10000) / 10000;
+    }
+  }
+
+  // Simples: se não veio odd total, usa a da única perna.
+  if (!(oddLida > 1) && comOdd.length === 1) oddLida = num(comOdd[0].odd);
+
+  return { ...d, pernas, oddTotal: oddLida };
+}
+
 /* ─────────── limpeza de HTML ─────────── */
 function limparHtml(html) {
   return html
@@ -193,9 +260,9 @@ export async function POST(req) {
       return Response.json({ ok: false, motivo: "Essa casa monta o bilhete por JavaScript e bloqueia leitura. Use o print." });
 
     try {
-      const dados = await perguntar(provedor, { texto });
-      if (!dados.encontrou) return Response.json({ ok: false, motivo: "Não achei um bilhete nessa página. Tente o print." });
-      return Response.json({ ok: true, dados, origem: "link", provedor });
+      const bruto = await perguntar(provedor, { texto });
+      if (!bruto.encontrou) return Response.json({ ok: false, motivo: "Não achei um bilhete nessa página. Tente o print." });
+      return Response.json({ ok: true, dados: normalizarDados(bruto), origem: "link", provedor });
     } catch (e) {
       return Response.json({ ok: false, motivo: e.message });
     }
@@ -210,9 +277,9 @@ export async function POST(req) {
       return Response.json({ ok: false, codigo: "grande", motivo: "Imagem muito grande. Recorte só o bilhete." });
 
     try {
-      const dados = await perguntar(provedor, { imagem: body.imagem, tipo });
-      if (!dados.encontrou) return Response.json({ ok: false, motivo: "Não reconheci um bilhete nesse print." });
-      return Response.json({ ok: true, dados, origem: "print", provedor });
+      const bruto = await perguntar(provedor, { imagem: body.imagem, tipo });
+      if (!bruto.encontrou) return Response.json({ ok: false, motivo: "Não reconheci um bilhete nesse print." });
+      return Response.json({ ok: true, dados: normalizarDados(bruto), origem: "print", provedor });
     } catch (e) {
       return Response.json({ ok: false, codigo: "falha-ia", motivo: e.message });
     }

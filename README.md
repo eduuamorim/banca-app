@@ -31,7 +31,7 @@ Não pule passos. Não faça fora de ordem. Se travar, vá até o final do guia,
 
 Se você **já publicou** e está só atualizando, faça duas coisas:
 
-**1. Rode o `schema.sql` de novo.** Ele cria a tabela de contas de acesso, adiciona o saldo do banco e instala as travas de segurança. Nada é apagado. Seus logins viram uma conta "Principal" em cada casa.
+**1. Rode o `schema.sql` de novo.** Ele adiciona o formato de bilhete às apostas (tipo e seleções), o saldo do banco, a marca de edição e as travas de segurança. Nada é apagado. Suas apostas antigas viram bilhetes simples de uma seleção, sem perder nada.
 
 **2. Suba os arquivos novos no GitHub.** A Vercel republica sozinha.
 
@@ -646,6 +646,20 @@ Para ver tudo da aposta, clique em qualquer outro ponto da linha.
 No cashout, você digita o valor recebido e vê o resultado calculado na hora, antes de salvar.
 
 Enquanto a aposta está **Aberta**, ela **não entra em nenhum cálculo**.
+
+## Apostas em formato de bilhete
+
+Uma aposta pode ser simples (uma seleção) ou múltipla (várias no mesmo bilhete).
+
+Ao cadastrar, cada seleção é uma "perna", com confronto, mercado, escolha, odd e a data do jogo. O botão "Adicionar seleção" transforma a aposta numa múltipla. Com mais de uma perna, o app mostra a odd combinada calculada, mas quem manda é a odd que você informa.
+
+**A odd do bilhete.** O número que vale é o que a casa mostra no print. Quando você lê um bilhete pela IA, ela pega essa odd total exatamente como está lá. O cálculo das pernas multiplicadas aparece só como referência, porque as casas costumam arredondar. Você pode editar a odd a qualquer momento.
+
+**Lendo o print.** No cadastro, cole ou arraste o print do bilhete. A IA lê e preenche as seleções, a casa e a odd. Cada casa escreve de um jeito, então confira antes de salvar: a leitura é um rascunho que você aprova.
+
+**Resolvendo.** Você marca o bilhete inteiro de uma vez: green, red, cashout ou anulada. Numa múltipla, se qualquer perna falhou, o bilhete é red. O app não precisa saber qual perna caiu, o resultado é seu.
+
+**Vendo o bilhete.** Fechado, a aposta mostra o básico: nome, odd, valor, casa, código. Uma múltipla ganha um selo com o número de seleções. Ao abrir, aparece o bilhete completo, com cada perna, a odd total e o ganho potencial.
 
 ## Banca, Caixa e Patrimônio: três coisas diferentes
 

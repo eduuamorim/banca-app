@@ -1,8 +1,8 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Link2, ImagePlus, Loader2, Sparkles, AlertTriangle, X, Wand2, Cpu } from "lucide-react";
+import { Link2, ImagePlus, Loader2, Sparkles, AlertTriangle, X, Wand2, Cpu, Plus, Trash2, Layers } from "lucide-react";
 import { C, Modal, Input, Select, SelectCasa, Label, Btn, ST, Codigo, Aviso, Avatar } from "@/lib/ui";
-import { uid, hoje, n, brl, sgn, nomeDoEvento, tituloAposta } from "@/lib/calc";
+import { uid, hoje, n, brl, sgn, nomeDoEvento, tituloAposta, pernaVazia, oddTotal, eventoDasPernas } from "@/lib/calc";
 import { lerBilheteNoAparelho, encerrarOcr } from "@/lib/ocrLocal";
 
 /* ═══════════════════════════════════════════════════════
@@ -191,7 +191,13 @@ function AutoFill({ token, onDados, me }) {
 /* ═══════════════════════ modal ═══════════════════════ */
 
 export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, valorStake, salvarAposta, dia, sessao }) {
-  const inicial = bet && bet.id ? bet : {
+  const inicial = bet && bet.id ? {
+    ...bet,
+    // Aposta antiga (sem pernas) ganha uma perna a partir do evento e da odd.
+    pernas: Array.isArray(bet.pernas) && bet.pernas.length
+      ? bet.pernas
+      : [{ confronto: bet.evento || "", mercado: "", selecao: "", odd: bet.odd || "", dataJogo: "" }],
+  } : {
     id: uid(),
     codigo: "",
     nome: "",
@@ -205,6 +211,7 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
     status: "aberta",
     cashoutValor: "",
     obs: "",
+    pernas: [pernaVazia()],
   };
 
   const [f, setF] = useState(inicial);
@@ -213,6 +220,32 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
 
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
   const setStake = (pct) => setF((p) => ({ ...p, stakePct: n(pct), valor: (cfg.banca * n(pct)) / 100 }));
+
+  // ── pernas ──
+  const pernas = f.pernas || [];
+  const multipla = pernas.length > 1;
+  const oddProduto = oddTotal(pernas);
+  // A odd que vale: a que veio do print ou que você digitou. O produto é só sugestão.
+  const oddDoBilhete = n(f.odd) > 1 ? n(f.odd) : oddProduto;
+
+  const setPerna = (i, k, v) => setF((p) => {
+    const arr = p.pernas.map((perna, idx) => (idx === i ? { ...perna, [k]: v } : perna));
+    // Se a odd total está vazia ou seguia o produto, acompanha o novo produto.
+    const prod = oddTotal(arr);
+    const seguiaProduto = !p.odd || Math.abs(n(p.odd) - oddTotal(p.pernas)) < 0.0001;
+    return { ...p, pernas: arr, odd: seguiaProduto ? prod : p.odd };
+  });
+  const addPerna = () => setF((p) => {
+    const arr = [...p.pernas, pernaVazia()];
+    return { ...p, pernas: arr };
+  });
+  const removerPerna = (i) => setF((p) => {
+    const arr = p.pernas.filter((_, idx) => idx !== i);
+    const nova = arr.length ? arr : [pernaVazia()];
+    const prod = oddTotal(nova);
+    const seguiaProduto = !p.odd || Math.abs(n(p.odd) - oddTotal(p.pernas)) < 0.0001;
+    return { ...p, pernas: nova, odd: seguiaProduto ? prod : p.odd };
+  });
 
   /**
    * Aplica o que foi lido no bilhete.
@@ -223,11 +256,26 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
   const aplicar = useCallback((d) => {
     setF((p) => {
       const novo = { ...p };
-      if (d.evento) {
-        novo.evento = d.evento;
-        novo.nome = nomeDoEvento(d.evento);
+
+      // A IA pode devolver pernas (bilhete completo) ou só evento+odd (formato antigo).
+      if (Array.isArray(d.pernas) && d.pernas.length) {
+        novo.pernas = d.pernas.map((x) => ({
+          confronto: x.confronto || x.evento || "",
+          mercado: x.mercado || "",
+          selecao: x.selecao || "",
+          odd: x.odd || "",
+          dataJogo: x.dataJogo || "",
+        }));
+      } else if (d.evento || d.odd) {
+        novo.pernas = [{ confronto: d.evento || "", mercado: "", selecao: "", odd: d.odd || "", dataJogo: "" }];
       }
-      if (d.odd) novo.odd = d.odd;
+
+      // A odd do bilhete vem do print: usamos a que a casa mostra, não a recalculada.
+      // Se a IA não trouxe a total, caímos no produto das pernas.
+      if (n(d.oddTotal) > 1) novo.odd = n(d.oddTotal);
+      else if (n(d.odd) > 1) novo.odd = n(d.odd);
+      else novo.odd = oddTotal(novo.pernas || []);
+
       if (d.casa) {
         const alvo = String(d.casa).toLowerCase();
         const achou = casas.find(
@@ -240,8 +288,8 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
     setAuto(true);
   }, [casas]);
 
-  const ok = n(f.odd) > 1 && n(f.valor) > 0;
-  const ganho = n(f.valor) * (n(f.odd) - 1);
+  const ok = oddDoBilhete > 1 && n(f.valor) > 0;
+  const ganho = n(f.valor) * (oddDoBilhete - 1);
   const dono = users.find((u) => u.id === f.usuarioId);
 
   return (
@@ -260,7 +308,7 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
 
         {auto && (
           <div className="anim-aviso flex items-center justify-between rounded-lg px-3 py-2" style={{ background: C.blueSoft, border: `1px solid ${C.blueBand}` }}>
-            <p style={{ fontSize: 12.5, color: C.blue }}>Evento e odd vieram do bilhete. A stake continua sendo sua escolha.</p>
+            <p style={{ fontSize: 12.5, color: C.blue }}>O bilhete foi lido. Confira as seleções. A stake continua sendo sua escolha.</p>
             <button onClick={() => setAuto(false)} style={{ color: C.blue }}><X size={14} /></button>
           </div>
         )}
@@ -273,20 +321,90 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
         </div>
 
         <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <span style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: C.muted }}>Evento</span>
-            {f.codigo && <Codigo valor={f.codigo} size={11} />}
+          <div className="flex items-center justify-between mb-2">
+            <span style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: C.muted }}>
+              {multipla ? "Bilhete múltiplo" : "Seleção"}
+            </span>
+            <div className="flex items-center gap-2">
+              {multipla && (
+                <span className="inline-flex items-center gap-1" style={{ fontSize: 11.5, color: C.blue, fontWeight: 600 }}>
+                  <Layers size={12} /> {pernas.length} seleções
+                </span>
+              )}
+              {f.codigo && <Codigo valor={f.codigo} size={11} />}
+            </div>
           </div>
-          <Input
-            value={f.evento}
-            onChange={(e) => set("evento", e.target.value)}
-            placeholder={`Flamengo x Palmeiras — Mais de 1.5 gols`}
-          />
-          <p className="mt-1.5" style={{ fontSize: 12, color: C.faint }}>
+
+          <div className="space-y-3">
+            {pernas.map((perna, i) => (
+              <div key={i} className="rounded-xl p-3"
+                style={{ background: multipla ? "#FBFCFD" : C.card, border: `1px solid ${multipla ? C.blueBand : C.line}` }}>
+                {multipla && (
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="inline-flex items-center justify-center rounded-md" style={{ width: 20, height: 20, fontSize: 11, fontWeight: 700, background: C.blueSoft, color: C.blue }}>
+                      {i + 1}
+                    </span>
+                    <button type="button" onClick={() => removerPerna(i)} className="p-1 rounded-md" style={{ color: C.faint }} title="Remover seleção">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                )}
+
+                <Input
+                  value={perna.confronto}
+                  onChange={(e) => setPerna(i, "confronto", e.target.value)}
+                  placeholder="Confronto: Flamengo x Palmeiras"
+                />
+
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <Input value={perna.mercado} onChange={(e) => setPerna(i, "mercado", e.target.value)} placeholder="Mercado" />
+                  <Input value={perna.selecao} onChange={(e) => setPerna(i, "selecao", e.target.value)} placeholder="Seleção" />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <div>
+                    <Input type="number" step="0.01" value={perna.odd} onChange={(e) => setPerna(i, "odd", e.target.value)} placeholder="Odd 1.85" />
+                  </div>
+                  <div>
+                    <Input type="datetime-local" value={perna.dataJogo} onChange={(e) => setPerna(i, "dataJogo", e.target.value)} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <button type="button" onClick={addPerna}
+            className="w-full mt-3 flex items-center justify-center gap-1.5 rounded-xl py-2.5"
+            style={{ border: `1.5px dashed ${C.line}`, fontSize: 13, fontWeight: 600, color: C.blue, background: C.card }}>
+            <Plus size={15} /> Adicionar seleção (múltipla)
+          </button>
+
+          <div className="mt-3 rounded-xl p-3" style={{ background: "#FBFCFD", border: `1px solid ${C.line}` }}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <Label>Odd total do bilhete</Label>
+                <p style={{ fontSize: 11.5, color: C.faint, marginTop: -2 }}>
+                  {multipla
+                    ? <>a que a casa mostra. Cálculo: {oddProduto.toFixed(2)}
+                        {pernas.filter((p) => n(p.odd) > 0).length > 1 && <> ({pernas.filter((p) => n(p.odd) > 0).map((p) => n(p.odd).toFixed(2)).join(" × ")})</>}</>
+                    : "a cotação da sua aposta"}
+                </p>
+              </div>
+              <div style={{ width: 110 }}>
+                <Input type="number" step="0.01" value={f.odd} onChange={(e) => set("odd", e.target.value)} placeholder={oddProduto ? oddProduto.toFixed(2) : "1.85"} style={{ textAlign: "right", fontWeight: 600 }} />
+              </div>
+            </div>
+            {multipla && n(f.odd) > 1 && Math.abs(n(f.odd) - oddProduto) > 0.005 && (
+              <button type="button" onClick={() => set("odd", Number(oddProduto.toFixed(4)))}
+                className="mt-2 inline-flex items-center gap-1" style={{ fontSize: 11.5, color: C.blue }}>
+                usar o cálculo ({oddProduto.toFixed(2)})
+              </button>
+            )}
+          </div>
+
+          <p className="mt-2" style={{ fontSize: 12, color: C.faint }}>
             Aparece na lista como{" "}
-            <b style={{ color: C.body }}>
-              {tituloAposta({ nome: nomeDoEvento(f.evento), evento: f.evento })}
-            </b>
+            <b style={{ color: C.body }}>{tituloAposta({ nome: nomeDoEvento(eventoDasPernas(f, pernas)), evento: eventoDasPernas(f, pernas) })}</b>
             {f.codigo && <>, com o código <b style={{ color: C.body }}>#{f.codigo}</b> ao lado</>}
           </p>
         </div>
@@ -313,13 +431,11 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
           </div>
         </div>
 
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div><Label>Odd</Label><Input type="number" step="0.01" value={f.odd} onChange={(e) => set("odd", e.target.value)} placeholder="1.85" /></div>
-          <div><Label>Status</Label>
-            <Select value={f.status} onChange={(e) => set("status", e.target.value)}>
-              {Object.entries(ST).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-            </Select>
-          </div>
+        <div>
+          <Label>Status</Label>
+          <Select value={f.status} onChange={(e) => set("status", e.target.value)}>
+            {Object.entries(ST).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          </Select>
         </div>
 
         {f.status === "cashout" && (
@@ -334,7 +450,7 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
             <div className="rounded-xl p-4" style={{ background: C.greenSoft, border: `1px solid ${C.greenBand}` }}>
               <p style={{ fontSize: 11, fontWeight: 600, color: C.greenDeep, letterSpacing: ".05em" }}>SE GANHAR</p>
               <p className="num" style={{ fontSize: 20, fontWeight: 700, color: C.greenDeep }}>+{brl(ganho)}</p>
-              <p style={{ fontSize: 11.5, color: C.greenDeep, opacity: .7 }}>volta {brl(n(f.valor) * n(f.odd))}</p>
+              <p style={{ fontSize: 11.5, color: C.greenDeep, opacity: .7 }}>volta {brl(n(f.valor) * oddDoBilhete)}</p>
             </div>
             <div className="rounded-xl p-4" style={{ background: C.redSoft, border: `1px solid ${C.redBand}` }}>
               <p style={{ fontSize: 11, fontWeight: 600, color: C.red, letterSpacing: ".05em" }}>SE PERDER</p>
@@ -349,13 +465,13 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
         <div className="flex justify-end gap-2 pt-1">
           <Btn kind="outline" onClick={onClose}>Cancelar</Btn>
           <Btn kind="green" disabled={!ok} onClick={() => {
-            // O nome sempre acompanha o evento. Vazio = o banco grava "Aposta " + código.
-            // O código em si nunca é enviado: ele nasce no banco e o banco recusa alterá-lo.
+            const evento = eventoDasPernas(f, pernas);
             salvarAposta({
               ...f,
-              nome: nomeDoEvento(f.evento),
+              evento,
+              nome: nomeDoEvento(evento),
               valor: n(f.valor),
-              odd: n(f.odd),
+              odd: oddDoBilhete,
               stakePct: n(f.stakePct),
             });
             onClose();

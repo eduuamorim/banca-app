@@ -90,7 +90,7 @@ export function Input({ style, numerico, ...p }) {
         height: 44, padding: "0 14px", borderRadius: 12, background: C.card,
         border: `1.5px solid ${foc ? C.green : C.line}`,
         boxShadow: foc ? `0 0 0 3px ${C.greenSoft}` : "none",
-        fontSize: 14.5, color: C.ink,
+        fontSize: 16, color: C.ink,
         transition: "border-color .13s ease, box-shadow .13s ease",
         ...style,
       }}
@@ -108,7 +108,7 @@ export function Select({ children, ...p }) {
           height: 44, padding: "0 38px 0 14px", borderRadius: 12, background: C.card,
           border: `1.5px solid ${foc ? C.green : C.line}`,
           boxShadow: foc ? `0 0 0 3px ${C.greenSoft}` : "none",
-          fontSize: 14.5, color: C.ink,
+          fontSize: 16, color: C.ink,
           transition: "border-color .13s ease, box-shadow .13s ease",
         }}>
         {children}
@@ -142,7 +142,7 @@ export function Btn({ kind = "solid", size = "md", style, children, ...p }) {
 export function Pill({ status }) {
   const s = ST[status];
   return (
-    <span style={{ display: "inline-block", padding: "3px 9px", borderRadius: 7, fontSize: 11.5, fontWeight: 600, color: s.fg, background: s.bg, border: `1px solid ${s.bd}` }}>
+    <span className="shrink-0" style={{ display: "inline-block", padding: "3px 9px", borderRadius: 7, fontSize: 11.5, fontWeight: 600, whiteSpace: "nowrap", color: s.fg, background: s.bg, border: `1px solid ${s.bd}` }}>
       {s.label}
     </span>
   );
@@ -342,7 +342,7 @@ export function SelectCasa({ casas, valor, onChange, permitirVazio = true, rotul
           height: 44, padding: "0 38px 0 12px", borderRadius: 12, background: C.card,
           border: `1.5px solid ${aberto ? C.green : C.line}`,
           boxShadow: aberto ? `0 0 0 3px ${C.greenSoft}` : "none",
-          fontSize: 14.5, color: escolhida ? C.ink : C.muted,
+          fontSize: 16, color: escolhida ? C.ink : C.muted,
           transition: "border-color .13s ease, box-shadow .13s ease",
         }}
       >
@@ -565,35 +565,35 @@ export function Faixa({ v, meta, stop, seGanhar, sePerder, temAbertas }) {
   const X = (val) => L + ((Math.max(min, Math.min(max, val)) - min) / (max - min)) * (R - L);
   const cor = v >= meta ? C.green : v <= -stop ? C.red : C.ink;
   const px = X(v);
-  const lw = 104;
+  const lw = 128;
   const lx = Math.max(L, Math.min(R - lw, px - lw / 2));
 
   return (
-    <svg viewBox="0 0 800 112" className="w-full" style={{ height: 112 }}>
-      <defs><clipPath id="trk"><rect x={L} y={52} width={R - L} height={18} rx={9} /></clipPath></defs>
+    <svg viewBox="0 0 800 128" className="w-full" style={{ height: "auto", minHeight: 116 }} preserveAspectRatio="xMidYMid meet">
+      <defs><clipPath id="trk"><rect x={L} y={58} width={R - L} height={22} rx={11} /></clipPath></defs>
       <g clipPath="url(#trk)">
-        <rect x={X(min)} y={52} width={X(-stop) - X(min)} height={18} fill={C.redBand} />
-        <rect x={X(-stop)} y={52} width={X(0) - X(-stop)} height={18} fill={C.redSoft} />
-        <rect x={X(0)} y={52} width={X(meta) - X(0)} height={18} fill={C.greenSoft} />
-        <rect x={X(meta)} y={52} width={X(max) - X(meta)} height={18} fill={C.greenBand} />
+        <rect x={X(min)} y={58} width={X(-stop) - X(min)} height={22} fill={C.redBand} />
+        <rect x={X(-stop)} y={58} width={X(0) - X(-stop)} height={22} fill={C.redSoft} />
+        <rect x={X(0)} y={58} width={X(meta) - X(0)} height={22} fill={C.greenSoft} />
+        <rect x={X(meta)} y={58} width={X(max) - X(meta)} height={22} fill={C.greenBand} />
       </g>
       {temAbertas && (
         <g opacity="0.55">
-          <path d={`M${X(sePerder)} 48 l5 -7 l-10 0 z`} fill={C.red} />
-          <path d={`M${X(seGanhar)} 48 l5 -7 l-10 0 z`} fill={C.green} />
+          <path d={`M${X(sePerder)} 54 l6 -8 l-12 0 z`} fill={C.red} />
+          <path d={`M${X(seGanhar)} 54 l6 -8 l-12 0 z`} fill={C.green} />
         </g>
       )}
       {[[-stop, `\u2212${brl(stop)}`, C.red, "STOP"], [0, brl(0), C.faint, ""], [meta, `+${brl(meta)}`, C.green, "META"]].map(([val, txt, col, tag]) => (
         <g key={val}>
-          <line x1={X(val)} y1={48} x2={X(val)} y2={74} stroke={col} strokeWidth={val === 0 ? 1 : 2} strokeDasharray={val === 0 ? "2 3" : ""} />
-          {tag && <text x={X(val)} y={90} textAnchor="middle" style={{ fontSize: 10.5, fontWeight: 700, fill: col, letterSpacing: ".08em" }}>{tag}</text>}
-          <text x={X(val)} y={tag ? 105 : 90} textAnchor="middle" className="num" style={{ fontSize: 11, fill: C.muted }}>{txt}</text>
+          <line x1={X(val)} y1={54} x2={X(val)} y2={84} stroke={col} strokeWidth={val === 0 ? 1.5 : 2.5} strokeDasharray={val === 0 ? "2 3" : ""} />
+          {tag && <text x={X(val)} y={102} textAnchor="middle" style={{ fontSize: 13, fontWeight: 700, fill: col, letterSpacing: ".08em" }}>{tag}</text>}
+          <text x={X(val)} y={tag ? 120 : 102} textAnchor="middle" className="num" style={{ fontSize: 13, fill: C.muted }}>{txt}</text>
         </g>
       ))}
-      <rect x={lx} y={2} width={lw} height={26} rx={8} fill={cor} style={{ transition: "x .2s cubic-bezier(.16,1,.3,1)" }} />
-      <text x={lx + lw / 2} y={19} textAnchor="middle" className="num" style={{ fontSize: 12.5, fontWeight: 600, fill: "#fff" }}>{sgn(v)}</text>
-      <path d={`M${px} 36 l7 -8 l-14 0 z`} fill={cor} />
-      <rect x={px - 2.5} y={48} width={5} height={26} rx={2.5} fill={cor} />
+      <rect x={lx} y={2} width={lw} height={30} rx={9} fill={cor} style={{ transition: "x .2s cubic-bezier(.16,1,.3,1)" }} />
+      <text x={lx + lw / 2} y={22} textAnchor="middle" className="num" style={{ fontSize: 15, fontWeight: 600, fill: "#fff" }}>{sgn(v)}</text>
+      <path d={`M${px} 40 l8 -9 l-16 0 z`} fill={cor} />
+      <rect x={px - 3} y={54} width={6} height={30} rx={3} fill={cor} />
     </svg>
   );
 }

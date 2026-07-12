@@ -59,13 +59,39 @@ create table if not exists public.apostas (
   cashout_valor  numeric,
   obs            text not null default '',
   criado_em      timestamptz not null default now(),
-  constraint status_valido check (status in ('aberta','green','red','void','cashout'))
+
+  -- Bilhete. Uma aposta simples é uma perna só; a múltipla tem várias.
+  -- Guardamos as pernas como JSON porque elas sempre viajam junto com
+  -- a aposta e são resolvidas em bloco: nunca consultadas em separado.
+  tipo           text not null default 'simples',
+  pernas         jsonb not null default '[]',
+  ganho_potencial numeric,
+
+  constraint status_valido check (status in ('aberta','green','red','void','cashout')),
+  constraint tipo_valido check (tipo in ('simples','multipla'))
 );
 
 -- Colunas novas. O "if not exists" deixa rodar de novo sem erro,
 -- mesmo se você já tinha criado a tabela antes.
 alter table public.config  add column if not exists saldo_banco numeric not null default 0;
 alter table public.apostas add column if not exists codigo text;
+alter table public.apostas add column if not exists editado_em timestamptz;
+alter table public.apostas add column if not exists tipo text not null default 'simples';
+alter table public.apostas add column if not exists pernas jsonb not null default '[]';
+alter table public.apostas add column if not exists ganho_potencial numeric;
+
+-- a trava de tipo pode nao existir em bancos antigos
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.constraint_column_usage
+     where table_schema = 'public' and table_name = 'apostas'
+       and constraint_name = 'tipo_valido'
+  ) then
+    alter table public.apostas add constraint tipo_valido check (tipo in ('simples','multipla'));
+  end if;
+end
+$$;
 alter table public.apostas add column if not exists nome text not null default '';
 alter table public.casas   add column if not exists icone text not null default '';
 
@@ -173,6 +199,23 @@ begin
 
   if new.usuario_id is distinct from old.usuario_id then
     raise exception 'A aposta não pode trocar de dono.';
+  end if;
+
+  -- O momento do registro (criado_em) é imutável.
+  new.criado_em := old.criado_em;
+
+  -- Carimba quando foi editada. Só conta como edição real se
+  -- algum campo visível mudou, não em toda gravação.
+  if new.nome is distinct from old.nome
+     or new.evento is distinct from old.evento
+     or new.casa_id is distinct from old.casa_id
+     or new.valor is distinct from old.valor
+     or new.odd is distinct from old.odd
+     or new.stake_pct is distinct from old.stake_pct
+     or new.tipo is distinct from old.tipo
+     or new.pernas is distinct from old.pernas
+     or new.obs is distinct from old.obs then
+    new.editado_em := now();
   end if;
 
   return new;
