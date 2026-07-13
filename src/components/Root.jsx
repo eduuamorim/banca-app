@@ -8,7 +8,7 @@ import { hoje, brl, sgn, lucro, fechada, betFromRow, betToInsert, betToUpdate, c
 import Login from "./Login";
 import Painel from "./Painel";
 import Apostas from "./Apostas";
-import Chat from "./Chat";
+import BolhaChat from "./BolhaChat";
 import { prepararSom, tocarDing } from "@/lib/som";
 import Relatorio from "./Relatorio";
 import Casas from "./Casas";
