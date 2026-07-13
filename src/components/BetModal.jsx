@@ -46,6 +46,17 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
   const setStake = (pct) => setF((p) => ({ ...p, stakePct: n(pct), valor: (cfg.banca * n(pct)) / 100 }));
 
+  // Stake avulsa, só para esta aposta (não salva nada).
+  // Digitar em reais atualiza a %, e digitar em % atualiza os reais.
+  const setValorReais = (reais) => setF((p) => {
+    const v = n(reais);
+    return { ...p, valor: v, stakePct: cfg.banca > 0 ? (v / cfg.banca) * 100 : 0 };
+  });
+  const setValorPct = (pct) => setF((p) => {
+    const pc = n(pct);
+    return { ...p, stakePct: pc, valor: (cfg.banca * pc) / 100 };
+  });
+
   // ── pernas ──
   const pernas = f.pernas || [];
   const multipla = pernas.length > 1;
@@ -191,10 +202,37 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
               );
             })}
           </div>
+          <div className="mt-2 rounded-xl p-3" style={{ background: "#FBFCFD", border: `1px solid ${C.line}` }}>
+            <div className="flex items-center justify-between mb-2">
+              <span style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: "0.03em", textTransform: "uppercase", color: C.muted }}>
+                Valor personalizado
+              </span>
+              <span style={{ fontSize: 11, color: C.faint }}>só para esta aposta</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <span style={{ fontSize: 11, color: C.faint }}>Em reais</span>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span style={{ fontSize: 14, color: C.muted }}>R$</span>
+                  <Input type="text" inputMode="decimal" value={f.valor === "" ? "" : Number(n(f.valor).toFixed(2))}
+                    onChange={(e) => setValorReais(e.target.value)} placeholder="50,00" />
+                </div>
+              </div>
+              <div>
+                <span style={{ fontSize: 11, color: C.faint }}>% da banca</span>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <Input type="text" inputMode="decimal" value={Number(n(f.stakePct).toFixed(3))}
+                    onChange={(e) => setValorPct(e.target.value)} placeholder="1,2" />
+                  <span style={{ fontSize: 14, color: C.muted }}>%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="flex items-baseline justify-between mt-3 px-1">
             <span style={{ fontSize: 12.5, color: C.muted }}>Vai apostar</span>
             <span className="num" style={{ fontSize: 15, fontWeight: 600, color: C.ink }}>
-              {brl(n(f.valor))} <span style={{ fontSize: 12, fontWeight: 400, color: C.faint }}>· {n(f.stakePct)}% da banca</span>
+              {brl(n(f.valor))} <span style={{ fontSize: 12, fontWeight: 400, color: C.faint }}>· {n(f.stakePct).toFixed(2)}% da banca</span>
             </span>
           </div>
         </div>

@@ -13,6 +13,15 @@ import Chat from "./Chat";
 export default function BolhaChat(props) {
   const { naoLidas, aberto, setAberto } = props;
 
+  // Detecta desktop para dimensionar a janela: compacta no PC, cheia no celular.
+  const [desktop, setDesktop] = React.useState(false);
+  React.useEffect(() => {
+    const check = () => setDesktop(window.matchMedia("(min-width: 640px)").matches);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
   const abrir = () => setAberto(true);
 
   return (
@@ -25,8 +34,8 @@ export default function BolhaChat(props) {
             right: 18,
             bottom: "calc(env(safe-area-inset-bottom, 0px) + 84px)",  // acima da barra mobile
             width: 56, height: 56,
-            background: C.blue, color: "#fff",
-            boxShadow: "0 6px 20px rgba(58,122,156,.45)",
+            background: C.green, color: "#fff",
+            boxShadow: "0 6px 20px rgba(14,159,110,.45)",
           }}
           title="Conversa">
           <MessageCircle size={24} />
@@ -43,34 +52,28 @@ export default function BolhaChat(props) {
       {aberto && (
         <>
           {/* fundo escurecido (só no desktop; no celular a janela cobre tudo) */}
-          <div className="fixed inset-0 z-40 hidden sm:block" style={{ background: "rgba(20,30,33,.35)" }} onClick={() => setAberto(false)} />
+          {desktop && (
+            <div className="fixed inset-0 z-40" style={{ background: "rgba(20,30,33,.35)" }} onClick={() => setAberto(false)} />
+          )}
 
-          <div className="fixed z-50 flex flex-col bg-white overflow-hidden
-                          inset-0
-                          sm:inset-auto sm:right-5 sm:bottom-5 sm:rounded-2xl sm:shadow-2xl"
-            style={{ width: "100%", height: "100%" }}>
-            {/* no desktop, tamanho de janelinha */}
-            <style>{`
-              @media (min-width: 640px) {
-                .bolha-janela { width: 400px !important; height: 620px !important; max-height: calc(100vh - 40px); }
-              }
-            `}</style>
-            <div className="bolha-janela flex flex-col h-full">
-              {/* cabeçalho da janela */}
-              <div className="flex items-center justify-between px-4 py-3 shrink-0" style={{ background: C.blue, color: "#fff" }}>
-                <div className="flex items-center gap-2">
-                  <MessageCircle size={18} />
-                  <span style={{ fontSize: 15, fontWeight: 600 }}>Conversa</span>
-                </div>
-                <button onClick={() => setAberto(false)} className="p-1 rounded-md" style={{ color: "rgba(255,255,255,.85)" }}>
-                  <X size={20} />
-                </button>
+          <div className="fixed z-50 flex flex-col bg-white overflow-hidden shadow-2xl"
+            style={desktop
+              ? { right: 20, bottom: 20, width: 380, height: 600, maxHeight: "calc(100vh - 40px)", borderRadius: 16 }
+              : { inset: 0 }}>
+            {/* cabeçalho da janela */}
+            <div className="flex items-center justify-between px-4 py-3 shrink-0" style={{ background: C.green, color: "#fff" }}>
+              <div className="flex items-center gap-2">
+                <MessageCircle size={18} />
+                <span style={{ fontSize: 15, fontWeight: 600 }}>Conversa</span>
               </div>
+              <button onClick={() => setAberto(false)} className="p-1 rounded-md" style={{ color: "rgba(255,255,255,.85)" }}>
+                <X size={20} />
+              </button>
+            </div>
 
-              {/* o chat em si */}
-              <div className="flex-1 min-h-0 px-3">
-                <Chat {...props} embutido />
-              </div>
+            {/* o chat em si */}
+            <div className="flex-1 min-h-0 px-3 pb-2">
+              <Chat {...props} embutido />
             </div>
           </div>
         </>
