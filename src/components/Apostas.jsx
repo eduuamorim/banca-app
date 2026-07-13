@@ -26,7 +26,7 @@ const VAZIO = {
 };
 
 export default function Apostas(p) {
-  const { bets, casas, users, setModalAposta, mudarStatus, excluirAposta } = p;
+  const { bets, casas, users, setModalAposta, mudarStatus, excluirAposta, fixadas, alternarFixada } = p;
   const [f, setF] = useState(VAZIO);
   const [avancado, setAvancado] = useState(false);
 
@@ -246,6 +246,7 @@ export default function Apostas(p) {
               <Card pad={false}>
                 {arr.map((b, i) => (
                   <BetRow key={b.id} b={b} casas={casas} users={users} first={i === 0}
+                    fixada={fixadas.has(b.id)} alternarFixada={alternarFixada}
                     setModalAposta={setModalAposta} mudarStatus={mudarStatus} excluirAposta={excluirAposta} />
                 ))}
               </Card>

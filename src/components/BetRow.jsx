@@ -1,250 +1,181 @@
 "use client";
 import React, { useState } from "react";
-import { ChevronDown, ExternalLink, Pencil, Trash2, Check, X, MoreHorizontal, Layers } from "lucide-react";
-import { C, Pill, Btn, Num, Money, Info, Codigo, IconeCasa, Confirmar, Input, Label } from "@/lib/ui";
-import { n, brl, lucro, fechada, tituloAposta, dataHoraBR, pernasNormalizadas, resumoPerna } from "@/lib/calc";
+import { Pin, Pencil, Trash2, Check, X, MoreHorizontal, ExternalLink } from "lucide-react";
+import { C, Pill, SeloResultado, Btn, Money, Codigo, IconeCasa, Confirmar, Input, Label, Avatar } from "@/lib/ui";
+import { n, brl, lucro, fechada, tituloAposta, dataHoraBR, pernasNormalizadas } from "@/lib/calc";
 
 /* Cada resolução mostra a consequência em reais ANTES de confirmar. */
 const ACOES = {
-  green: {
-    rotulo: "Ganhou", botao: "green", tom: "green",
-    titulo: "Marcar como Green?",
-    valor: (b) => n(b.valor) * (n(b.odd) - 1),
-    frase: "Vai entrar como lucro no dia.",
-  },
-  red: {
-    rotulo: "Perdeu", botao: "red", tom: "red",
-    titulo: "Marcar como Red?",
-    valor: (b) => -n(b.valor),
-    frase: "Vai entrar como prejuízo no dia.",
-  },
-  void: {
-    rotulo: "Anulada", botao: "outline", tom: "amber",
-    titulo: "Marcar como Anulada?",
-    valor: () => 0,
-    frase: "A stake volta inteira. Não mexe no resultado do dia.",
-  },
-  cashout: {
-    rotulo: "Cashout", botao: "outline", tom: "blue",
-    titulo: "Encerrar por cashout",
-    valor: null,
-    frase: "Digite quanto você recebeu ao encerrar.",
-  },
-  aberta: {
-    rotulo: "Reabrir", botao: "ghost", tom: "amber",
-    titulo: "Reabrir esta aposta?",
-    valor: () => 0,
-    frase: "Ela sai do cálculo do dia até você resolver de novo.",
-  },
+  green: { rotulo: "Ganhou", tom: "green", titulo: "Marcar como Green?", valor: (b) => n(b.valor) * (n(b.odd) - 1), frase: "Vai entrar como lucro no dia." },
+  red:   { rotulo: "Perdeu", tom: "red", titulo: "Marcar como Red?", valor: (b) => -n(b.valor), frase: "Vai entrar como prejuízo no dia." },
+  void:  { rotulo: "Anulada", tom: "amber", titulo: "Marcar como Anulada?", valor: () => 0, frase: "A stake volta inteira. Não mexe no resultado do dia." },
+  cashout: { rotulo: "Cashout", tom: "blue", titulo: "Encerrar por cashout", valor: null, frase: "Digite quanto você recebeu ao encerrar." },
+  aberta: { rotulo: "Reabrir", tom: "amber", titulo: "Reabrir esta aposta?", valor: () => 0, frase: "Ela sai do cálculo do dia até você resolver de novo." },
 };
 
-export default function BetRow({ b, casas, users, first, setModalAposta, mudarStatus, excluirAposta }) {
-  const [open, setOpen] = useState(false);
-  const [mais, setMais] = useState(false);            // anulada/cashout na própria linha
-  const [confirmar, setConfirmar] = useState(null);   // chave de ACOES
+export default function BetRow({ b, casas, users, first, fixada, alternarFixada, setModalAposta, mudarStatus, excluirAposta }) {
+  const [mais, setMais] = useState(false);
+  const [confirmar, setConfirmar] = useState(null);
   const [cashout, setCashout] = useState("");
   const [excluindo, setExcluindo] = useState(false);
 
   const casa = casas.find((c) => c.id === b.casaId);
   const u = users.find((x) => x.id === b.usuarioId);
   const l = lucro(b);
-  const previsto = n(b.valor) * (n(b.odd) - 1);
-  // Nome e código são coisas separadas. O chip aparece sempre.
+  const resolvida = fechada(b);
   const titulo = tituloAposta(b);
 
-  // As pernas do bilhete. Aposta antiga vira uma perna só.
-  const pernasBilhete = pernasNormalizadas({
-    pernas: b.pernas, evento: b.evento, odd: b.odd,
-  });
+  const pernasBilhete = pernasNormalizadas({ pernas: b.pernas, evento: b.evento, odd: b.odd });
   const multipla = (b.tipo === "multipla") || pernasBilhete.length > 1;
+
+  // O nome do bilhete: o confronto cadastrado, com o tipo na frente.
+  // Simples: "Inglaterra x Argentina". Múltipla: "Múltipla · Inglaterra x Argentina +1".
+  const primeiroConfronto = (pernasBilhete[0]?.confronto || "").trim() || tituloAposta(b);
+  const tituloBilhete = multipla
+    ? `Múltipla · ${primeiroConfronto}${pernasBilhete.length > 1 ? ` +${pernasBilhete.length - 1}` : ""}`
+    : primeiroConfronto;
+  const ganhoPotencial = n(b.valor) * n(b.odd);
 
   const pedir = (chave) => {
     if (chave === "cashout") setCashout(String(n(b.valor).toFixed(2)));
     setConfirmar(chave);
+    setMais(false);
   };
-
   const aplicar = () => {
     if (confirmar === "cashout") mudarStatus(b, "cashout", cashout);
     else mudarStatus(b, confirmar);
     setConfirmar(null);
-    setMais(false);
   };
 
   const a = confirmar ? ACOES[confirmar] : null;
   const resultadoCashout = n(cashout) - n(b.valor);
 
+  // Cor da faixa lateral: verde se lucrou, vermelho se perdeu, neutra se aberta.
+  const corBorda = !resolvida ? C.line
+    : l > 0 ? C.greenBand
+    : l < 0 ? C.redBand
+    : C.amberBand;
+
   return (
     <>
-      <div style={{ borderTop: first ? "none" : `1px solid ${C.lineSoft}` }}>
-        {/* ── linha ── */}
-        <div className="flex items-center gap-3 px-5 py-4 cursor-pointer" onClick={() => setOpen(!open)}
-          style={{ transition: "background .13s ease", background: fechada(b) ? "#FCFCFA" : "transparent" }}>
-          <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-            style={{ background: u?.cor || C.line, color: "#fff", fontSize: 12, fontWeight: 600, opacity: fechada(b) ? 0.75 : 1 }}>
-            {u ? u.nome[0].toUpperCase() : "?"}
-          </div>
+      <div className="px-3 sm:px-4 py-3" style={{ borderTop: first ? "none" : `1px solid ${C.lineSoft}` }}>
+        <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${C.line}`, borderLeft: `3px solid ${corBorda}`, background: C.card }}>
 
-          <div className="min-w-0 flex-1" style={{ opacity: fechada(b) ? 0.72 : 1 }}>
-            <div className="flex items-center gap-2 min-w-0">
-              <p className="truncate" style={{ fontSize: 14, fontWeight: 600, letterSpacing: "-0.005em" }}>
-                {titulo}
-              </p>
-              {multipla && (
-                <span className="inline-flex items-center gap-0.5 shrink-0 rounded-md px-1.5 py-0.5" style={{ fontSize: 10.5, fontWeight: 700, background: C.blueSoft, color: C.blue }}>
-                  <Layers size={10} />{pernasBilhete.length}
+          {/* ── cabeçalho do bilhete ── */}
+          <div className="flex items-center gap-2.5 px-4 py-3" style={{ borderBottom: `1px solid ${C.lineSoft}`, background: "#FCFCFA" }}>
+            <button onClick={() => alternarFixada(b.id)} title={fixada ? "Desafixar" : "Fixar no topo"}
+              className="shrink-0 p-1 rounded-md" style={{ color: fixada ? C.amber : C.faint }}>
+              {fixada ? <Pin size={16} fill={C.amber} /> : <Pin size={16} />}
+            </button>
+
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="truncate" style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>
+                  {tituloBilhete}
                 </span>
-              )}
-              <Codigo valor={b.codigo} destaque />
-            </div>
-            <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
-              {casa && <IconeCasa casa={casa} size={13} radius={3} />}
-              <p className="num truncate" style={{ fontSize: 12.5, color: C.muted }}>
-                {brl(n(b.valor))} · odd {n(b.odd).toFixed(2)}
-                {casa && (
-                  <>
-                    {" · "}
-                    {casa.url ? (
-                      <a
-                        href={casa.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="hover:underline"
-                        style={{ color: C.blue }}
-                        title={`Abrir ${casa.nome}`}
-                      >
-                        {casa.nome}
-                      </a>
-                    ) : casa.nome}
-                  </>
-                )}
-              </p>
-            </div>
-          </div>
-
-          {/* Selo do status. Nas abertas some no celular, para caber os botões. */}
-          <div className={fechada(b) ? "" : "hidden md:block"}>
-            <Pill status={b.status} />
-          </div>
-
-          {/* Aposta aberta: resolve direto daqui, sem abrir o detalhe. */}
-          {!fechada(b) && (
-            <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-              <Rapido tom="green" titulo="Marcar como Green" onClick={() => pedir("green")}><Check size={15} /></Rapido>
-              <Rapido tom="red" titulo="Marcar como Red" onClick={() => pedir("red")}><X size={15} /></Rapido>
-              <Rapido tom="cinza" ativo={mais} titulo="Anulada ou cashout" onClick={() => setMais(!mais)}>
-                <MoreHorizontal size={15} />
-              </Rapido>
-            </div>
-          )}
-
-          <div className={`text-right shrink-0 ${fechada(b) ? "" : "hidden sm:block"}`} style={{ minWidth: 92 }}>
-            {fechada(b)
-              ? <Money v={l} prefix size={15} weight={600} color={l > 0 ? C.green : l < 0 ? C.red : C.faint} />
-              : <Num size={13.5} color={C.faint}>+{brl(previsto)}</Num>}
-          </div>
-
-          <ChevronDown size={16} style={{ color: C.faint, transform: open ? "rotate(180deg)" : "", transition: "transform .16s ease" }} />
-        </div>
-
-        {/* ── anulada / cashout, sem abrir o detalhe ── */}
-        {mais && !fechada(b) && (
-          <div className="anim-detalhe flex flex-wrap items-center gap-2 px-5 pb-3 -mt-1">
-            <span style={{ fontSize: 12.5, color: C.muted }}>Resolver como</span>
-            <Btn size="sm" kind="outline" onClick={() => pedir("void")}>Anulada</Btn>
-            <Btn size="sm" kind="outline" onClick={() => pedir("cashout")}>Cashout</Btn>
-            <Btn size="sm" kind="ghost" onClick={() => setMais(false)}>Fechar</Btn>
-          </div>
-        )}
-
-        {/* ── detalhe ── */}
-        {open && (
-          <div className="anim-detalhe px-5 pb-5" style={{ background: "#FBFBF9" }}>
-            {/* bilhete: cada seleção como uma perna */}
-            <div className="pt-4">
-              <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${C.line}`, background: C.card }}>
-                <div className="flex items-center justify-between px-4 py-2.5" style={{ borderBottom: `1px solid ${C.lineSoft}`, background: "#FCFCFA" }}>
-                  <span className="inline-flex items-center gap-1.5" style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase", color: multipla ? C.blue : C.muted }}>
-                    {multipla ? <><Layers size={12} /> Múltipla · {pernasBilhete.length} seleções</> : "Simples"}
-                  </span>
-                  <span className="num" style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>
-                    odd {n(b.odd).toFixed(2)}
-                  </span>
-                </div>
-
-                {pernasBilhete.map((perna, i) => (
-                  <div key={i} className="px-4 py-3" style={{ borderTop: i === 0 ? "none" : `1px solid ${C.lineSoft}` }}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        {perna.confronto && <p style={{ fontSize: 13.5, fontWeight: 600, color: C.ink }}>{perna.confronto}</p>}
-                        {resumoPerna(perna) && <p style={{ fontSize: 12.5, color: C.body }}>{resumoPerna(perna)}</p>}
-                        {perna.dataJogo && <p className="num mt-0.5" style={{ fontSize: 11.5, color: C.faint }}>jogo {dataHoraBR(perna.dataJogo)}</p>}
-                      </div>
-                      {n(perna.odd) > 0 && (
-                        <span className="num shrink-0" style={{ fontSize: 12.5, fontWeight: 600, color: C.body }}>{n(perna.odd).toFixed(2)}</span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-
-                <div className="flex items-center justify-between px-4 py-2.5" style={{ borderTop: `1px solid ${C.lineSoft}`, background: "#FCFCFA" }}>
-                  <span style={{ fontSize: 12, color: C.muted }}>Ganho potencial</span>
-                  <span className="num" style={{ fontSize: 14, fontWeight: 700, color: C.greenDeep }}>{brl(n(b.valor) * n(b.odd))}</span>
-                </div>
+                <Codigo valor={b.codigo} destaque size={11} />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-4">
-              <Info k="Código" v={<Codigo valor={b.codigo} size={12} />} />
-              <Info k="Stake" v={`${Number(b.stakePct).toFixed(2)}%`} />
-              <Info k="Valor apostado" v={brl(n(b.valor))} />
-              <Info k="Casa" v={casa ? (
-                <span className="inline-flex items-center gap-1.5">
-                  <IconeCasa casa={casa} size={14} radius={3} />
-                  {casa.url
-                    ? <a href={casa.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1" style={{ color: C.blue }}>
-                        {casa.nome}<ExternalLink size={11} />
-                      </a>
-                    : casa.nome}
-                </span>
-              ) : "\u2014"} />
-            </div>
+            <span className="num shrink-0" style={{ fontSize: 15, fontWeight: 700, color: C.ink }}>
+              {n(b.odd).toFixed(2)}
+            </span>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pb-4">
-              <Info k="Registrada por" v={u?.nome || "\u2014"} />
-              {b.criadoEm && <Info k="Registrada em" v={dataHoraBR(b.criadoEm)} />}
-              {b.editadoEm && <Info k="Editada em" v={dataHoraBR(b.editadoEm)} />}
-              {b.obs && <div className="col-span-2 sm:col-span-3"><Info k="Observação" v={b.obs} /></div>}
-            </div>
-
-            <div className="flex flex-wrap gap-2 items-center">
-              {!fechada(b) ? (
-                <>
-                  <Btn size="sm" kind="green" onClick={() => pedir("green")}>Ganhou</Btn>
-                  <Btn size="sm" kind="red" onClick={() => pedir("red")}>Perdeu</Btn>
-                  <Btn size="sm" kind="outline" onClick={() => pedir("void")}>Anulada</Btn>
-                  <Btn size="sm" kind="outline" onClick={() => pedir("cashout")}>Cashout</Btn>
-                </>
-              ) : (
-                <Btn size="sm" kind="ghost" onClick={() => pedir("aberta")}>Reabrir</Btn>
-              )}
-              <div className="flex-1" />
-              <Btn size="sm" kind="ghost" onClick={() => setModalAposta(b)}><Pencil size={14} /></Btn>
-              <Btn size="sm" kind="ghost" onClick={() => setExcluindo(true)} style={{ color: C.red }}><Trash2 size={14} /></Btn>
-            </div>
+            {resolvida
+              ? <SeloResultado status={b.status} size={26} />
+              : <Pill status={b.status} />}
           </div>
-        )}
+
+          {/* ── pernas ── */}
+          <div>
+            {pernasBilhete.map((perna, i) => (
+              <div key={i} className="px-4 py-3" style={{ borderTop: i === 0 ? "none" : `1px solid ${C.lineSoft}` }}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    {perna.confronto && <p style={{ fontSize: 13.5, fontWeight: 600, color: C.ink }}>{perna.confronto}</p>}
+                    {perna.mercado && <p style={{ fontSize: 12.5, color: C.body, marginTop: 1 }}>{perna.mercado}</p>}
+                  </div>
+                  {n(perna.odd) > 0 && multipla && (
+                    <span className="num shrink-0" style={{ fontSize: 12.5, fontWeight: 600, color: C.body }}>{n(perna.odd).toFixed(2)}</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* ── rodapé: valores ── */}
+          <div className="px-4 py-3" style={{ borderTop: `1px solid ${C.lineSoft}` }}>
+            <div className="flex items-center justify-between">
+              <span style={{ fontSize: 12.5, color: C.muted }}>Aposta</span>
+              <span className="num" style={{ fontSize: 13.5, fontWeight: 600, color: C.ink }}>{brl(n(b.valor))}</span>
+            </div>
+            <div className="flex items-center justify-between mt-1">
+              <span style={{ fontSize: 12.5, color: C.muted }}>
+                {resolvida ? "Resultado" : "Ganho potencial"}
+              </span>
+              {resolvida
+                ? <Money v={l} prefix size={15} weight={700} color={l > 0 ? C.green : l < 0 ? C.red : C.muted} />
+                : <span className="num" style={{ fontSize: 15, fontWeight: 700, color: C.greenDeep }}>{brl(ganhoPotencial)}</span>}
+            </div>
+            {b.status === "cashout" && n(b.cashoutValor) > 0 && (
+              <div className="flex items-center justify-between mt-1">
+                <span style={{ fontSize: 12.5, color: C.muted }}>Recebido no cashout</span>
+                <span className="num" style={{ fontSize: 13, color: C.body }}>{brl(n(b.cashoutValor))}</span>
+              </div>
+            )}
+          </div>
+
+          {/* ── barra de quem e casa ── */}
+          <div className="flex items-center gap-2 px-4 py-2.5" style={{ borderTop: `1px solid ${C.lineSoft}`, background: "#FCFCFA" }}>
+            <Avatar user={u} size={18} />
+            <span className="truncate" style={{ fontSize: 12, color: C.muted }}>{u?.nome || "\u2014"}</span>
+            {casa && (
+              <>
+                <span style={{ color: C.faint }}>·</span>
+                <IconeCasa casa={casa} size={14} radius={3} />
+                {casa.url
+                  ? <a href={casa.url} target="_blank" rel="noreferrer" className="truncate inline-flex items-center gap-1 hover:underline" style={{ fontSize: 12, color: C.blue }}>
+                      {casa.nome}<ExternalLink size={10} />
+                    </a>
+                  : <span className="truncate" style={{ fontSize: 12, color: C.muted }}>{casa.nome}</span>}
+              </>
+            )}
+            {b.criadoEm && (
+              <span className="num ml-auto shrink-0" style={{ fontSize: 11, color: C.faint }}>{dataHoraBR(b.criadoEm)}</span>
+            )}
+          </div>
+
+          {/* ── ações ── */}
+          <div className="flex items-center gap-2 px-4 py-2.5" style={{ borderTop: `1px solid ${C.lineSoft}` }}>
+            {!resolvida ? (
+              <>
+                <Btn size="sm" kind="green" onClick={() => pedir("green")}><Check size={14} /> Green</Btn>
+                <Btn size="sm" kind="red" onClick={() => pedir("red")}><X size={14} /> Red</Btn>
+                <Btn size="sm" kind="outline" onClick={() => setMais(!mais)}><MoreHorizontal size={14} /></Btn>
+              </>
+            ) : (
+              <Btn size="sm" kind="outline" onClick={() => pedir("aberta")}>Reabrir</Btn>
+            )}
+            <div className="flex-1" />
+            <button onClick={() => setModalAposta(b)} className="p-1.5 rounded-md" style={{ color: C.faint }} title="Editar"><Pencil size={15} /></button>
+            <button onClick={() => setExcluindo(true)} className="p-1.5 rounded-md" style={{ color: C.faint }} title="Excluir"><Trash2 size={15} /></button>
+          </div>
+
+          {/* anulada / cashout */}
+          {mais && !resolvida && (
+            <div className="anim-detalhe flex flex-wrap items-center gap-2 px-4 pb-3" style={{ borderTop: `1px solid ${C.lineSoft}`, paddingTop: 12 }}>
+              <span style={{ fontSize: 12.5, color: C.muted }}>Resolver como</span>
+              <Btn size="sm" kind="outline" onClick={() => pedir("void")}>Anulada</Btn>
+              <Btn size="sm" kind="outline" onClick={() => pedir("cashout")}>Cashout</Btn>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* ── confirmação de status ── */}
+      {/* ── confirmações ── */}
       {a && confirmar !== "cashout" && (
-        <Confirmar
-          titulo={a.titulo}
-          mensagem={a.frase}
-          tom={a.tom}
-          rotuloOk={a.rotulo}
-          onCancelar={() => setConfirmar(null)}
-          onOk={aplicar}
+        <Confirmar titulo={a.titulo} mensagem={a.frase} tom={a.tom} rotuloOk={a.rotulo}
+          onCancelar={() => setConfirmar(null)} onOk={aplicar}
           detalhe={
             <div>
               <div className="flex items-center gap-2 mb-2">
@@ -253,93 +184,38 @@ export default function BetRow({ b, casas, users, first, setModalAposta, mudarSt
               </div>
               <div className="flex items-baseline justify-between">
                 <span style={{ fontSize: 12.5, color: C.muted }}>Impacto no dia</span>
-                <Money v={a.valor(b)} prefix size={20} weight={700}
-                  color={a.valor(b) > 0 ? C.green : a.valor(b) < 0 ? C.red : C.muted} />
+                <Money v={a.valor(b)} prefix size={20} weight={700} color={a.valor(b) > 0 ? C.green : a.valor(b) < 0 ? C.red : C.muted} />
               </div>
-              <p className="num mt-1" style={{ fontSize: 11.5, color: C.faint }}>
-                {brl(n(b.valor))} · odd {n(b.odd).toFixed(2)}
-              </p>
+              <p className="num mt-1" style={{ fontSize: 11.5, color: C.faint }}>{brl(n(b.valor))} · odd {n(b.odd).toFixed(2)}</p>
             </div>
-          }
-        />
+          } />
       )}
 
-      {/* ── confirmação de cashout, com valor ── */}
       {confirmar === "cashout" && (
-        <Confirmar
-          titulo="Encerrar por cashout"
-          mensagem="Digite quanto você recebeu ao encerrar a aposta."
-          tom="blue"
-          rotuloOk="Confirmar cashout"
-          onCancelar={() => setConfirmar(null)}
-          onOk={() => n(cashout) >= 0 && aplicar()}
+        <Confirmar titulo="Encerrar por cashout" mensagem="Digite quanto você recebeu ao encerrar a aposta." tom="blue" rotuloOk="Confirmar cashout"
+          onCancelar={() => setConfirmar(null)} onOk={() => n(cashout) >= 0 && aplicar()}
           detalhe={
             <div>
               <Label>Valor recebido</Label>
-              <Input type="number" step="0.01" value={cashout} autoFocus
-                onChange={(e) => setCashout(e.target.value)}
-                onKeyDown={(e) => e.stopPropagation()} />
+              <Input type="number" step="0.01" value={cashout} autoFocus onChange={(e) => setCashout(e.target.value)} onKeyDown={(e) => e.stopPropagation()} />
               <div className="flex items-baseline justify-between mt-3">
-                <span style={{ fontSize: 12.5, color: C.muted }}>
-                  Recebido menos {brl(n(b.valor))}
-                </span>
-                <Money v={resultadoCashout} prefix size={18} weight={700}
-                  color={resultadoCashout > 0 ? C.green : resultadoCashout < 0 ? C.red : C.muted} />
+                <span style={{ fontSize: 12.5, color: C.muted }}>Recebido menos {brl(n(b.valor))}</span>
+                <Money v={resultadoCashout} prefix size={18} weight={700} color={resultadoCashout > 0 ? C.green : resultadoCashout < 0 ? C.red : C.muted} />
               </div>
             </div>
-          }
-        />
+          } />
       )}
 
-      {/* ── confirmação de exclusão ── */}
       {excluindo && (
-        <Confirmar
-          titulo="Excluir esta aposta?"
-          mensagem="Não dá para desfazer."
-          tom="red"
-          rotuloOk="Excluir"
-          onCancelar={() => setExcluindo(false)}
-          onOk={() => { excluirAposta(b.id); setExcluindo(false); }}
+        <Confirmar titulo="Excluir esta aposta?" mensagem="Não dá para desfazer." tom="red" rotuloOk="Excluir"
+          onCancelar={() => setExcluindo(false)} onOk={() => { excluirAposta(b.id); setExcluindo(false); }}
           detalhe={
             <div className="flex items-center gap-2">
               <p className="truncate flex-1" style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>{titulo}</p>
               <Codigo valor={b.codigo} copiavel={false} size={11} />
             </div>
-          }
-        />
+          } />
       )}
     </>
-  );
-}
-
-/* ── botão redondo de resolver, na própria linha ── */
-
-function Rapido({ tom, titulo, onClick, children, ativo }) {
-  const [sobre, setSobre] = useState(false);
-  const cores = {
-    green: { fg: C.greenDeep, bg: C.greenSoft, bd: C.greenBand, on: C.green },
-    red:   { fg: C.red,       bg: C.redSoft,   bd: C.redBand,   on: C.red },
-    cinza: { fg: C.muted,     bg: C.lineSoft,  bd: C.line,      on: C.body },
-  }[tom];
-  const aceso = sobre || ativo;
-
-  return (
-    <button
-      onClick={onClick}
-      onMouseEnter={() => setSobre(true)}
-      onMouseLeave={() => setSobre(false)}
-      title={titulo}
-      aria-label={titulo}
-      className="inline-flex items-center justify-center shrink-0"
-      style={{
-        width: 30, height: 30, borderRadius: 9,
-        background: aceso ? cores.on : cores.bg,
-        border: `1px solid ${aceso ? cores.on : cores.bd}`,
-        color: aceso ? "#fff" : cores.fg,
-        transition: "background .13s ease, color .13s ease, border-color .13s ease",
-      }}
-    >
-      {children}
-    </button>
   );
 }

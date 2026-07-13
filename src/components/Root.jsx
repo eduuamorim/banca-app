@@ -25,6 +25,7 @@ export default function Root() {
   const [users, setUsers] = useState([]);
   const [movs, setMovs] = useState([]);
   const [contas, setContas] = useState([]);
+  const [fixadas, setFixadas] = useState(new Set());
 
   const [tab, setTab] = useState("painel");
   const [dia, setDia] = useState(hoje());
@@ -47,13 +48,14 @@ export default function Root() {
 
   // ── carregar tudo ──
   const carregar = useCallback(async () => {
-    const [c, p, ca, ap, mv, ct] = await Promise.all([
+    const [c, p, ca, ap, mv, ct, fx] = await Promise.all([
       supabase.from("config").select("*").eq("id", 1).single(),
       supabase.from("profiles").select("*").order("criado_em"),
       supabase.from("casas").select("*").order("nome"),
       supabase.from("apostas").select("*").order("data", { ascending: false }).order("criado_em", { ascending: false }),
       supabase.from("movimentos").select("*").order("data", { ascending: false }).order("criado_em", { ascending: false }),
       supabase.from("contas").select("*").order("criado_em"),
+      supabase.from("fixadas").select("aposta_id"),
     ]);
     if (c.data) setCfg(cfgFromRow(c.data));
     if (p.data) setUsers(p.data);
@@ -61,6 +63,7 @@ export default function Root() {
     if (ap.data) setBets(ap.data.map(betFromRow));
     if (mv.data) setMovs(mv.data.map(movFromRow));
     if (ct.data) setContas(ct.data.map(contaFromRow));
+    if (fx.data) setFixadas(new Set(fx.data.map((r) => r.aposta_id)));
     setCarregado(true);
   }, []);
 
@@ -72,6 +75,7 @@ export default function Root() {
       .on("postgres_changes", { event: "*", schema: "public", table: "apostas" }, carregar)
       .on("postgres_changes", { event: "*", schema: "public", table: "movimentos" }, carregar)
       .on("postgres_changes", { event: "*", schema: "public", table: "contas" }, carregar)
+      .on("postgres_changes", { event: "*", schema: "public", table: "fixadas" }, carregar)
       .subscribe();
     return () => supabase.removeChannel(canal);
   }, [sessao, carregar]);
@@ -133,6 +137,21 @@ export default function Root() {
     if (error) return flash("Erro ao excluir.");
     flash("Casa excluída");
     carregar();
+  };
+
+  const alternarFixada = async (apostaId) => {
+    const jaFixada = fixadas.has(apostaId);
+    // atualização otimista: muda na hora, o banco confirma depois
+    setFixadas((s) => {
+      const nova = new Set(s);
+      if (jaFixada) nova.delete(apostaId); else nova.add(apostaId);
+      return nova;
+    });
+    if (jaFixada) {
+      await supabase.from("fixadas").delete().eq("usuario_id", meId).eq("aposta_id", apostaId);
+    } else {
+      await supabase.from("fixadas").insert({ usuario_id: meId, aposta_id: apostaId });
+    }
   };
 
   const salvarConta = async (c) => {
@@ -199,6 +218,7 @@ export default function Root() {
 
   const ctx = {
     cfg, salvarCfg, bets, casas, contas, users, movs, me, meta, stop, valorStake, flash, dia, setDia,
+    fixadas, alternarFixada,
     doDia, lucroDia, lucroTotal, depositado, sacado,
     setModalAposta, salvarAposta, mudarStatus, excluirAposta,
     salvarCasa, excluirCasa, salvarConta, excluirConta, salvarMov, excluirMov, sair, sessao,

@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
-import { ChevronDown, X, Copy, Check, AlertTriangle } from "lucide-react";
+import { ChevronDown, X, Copy, Check, AlertTriangle, Minus, Clock, RotateCcw } from "lucide-react";
 import { brl, sgn } from "./calc";
 
 export const C = {
@@ -36,11 +36,11 @@ export const FONTE = "'Inter', system-ui, -apple-system, sans-serif";
 export const F = { display: FONTE, body: FONTE, mono: FONTE };
 
 export const ST = {
-  aberta:  { label: "Aberta",  fg: C.muted,     bg: C.lineSoft,  bd: C.line },
-  green:   { label: "Green",   fg: C.greenDeep, bg: C.greenSoft, bd: C.greenBand },
-  red:     { label: "Red",     fg: C.red,       bg: C.redSoft,   bd: C.redBand },
-  void:    { label: "Anulada", fg: C.amber,     bg: C.amberSoft, bd: C.amberBand },
-  cashout: { label: "Cashout", fg: C.blue,      bg: C.blueSoft,  bd: C.blueBand },
+  aberta:  { label: "Aberta",  fg: C.muted,     bg: C.lineSoft,  bd: C.line,      icone: "relogio" },
+  green:   { label: "Green",   fg: C.greenDeep, bg: C.greenSoft, bd: C.greenBand, icone: "check" },
+  red:     { label: "Red",     fg: C.red,       bg: C.redSoft,   bd: C.redBand,   icone: "x" },
+  void:    { label: "Anulada", fg: C.amber,     bg: C.amberSoft, bd: C.amberBand, icone: "menos" },
+  cashout: { label: "Cashout", fg: C.blue,      bg: C.blueSoft,  bd: C.blueBand,  icone: "cashout" },
 };
 
 export const CORES = ["#0E9F6E", "#3A7A9C", "#BF861D", "#8B5CF6", "#CE4444", "#0F766E"];
@@ -139,11 +139,36 @@ export function Btn({ kind = "solid", size = "md", style, children, ...p }) {
   return <button {...p} style={{ ...base, ...kinds[kind], ...style }}>{children}</button>;
 }
 
+/** O ícone de cada status, para bater o olho no resultado. */
+export function IconeStatus({ status, size = 12 }) {
+  const nome = ST[status]?.icone;
+  if (nome === "check") return <Check size={size} />;
+  if (nome === "x") return <X size={size} />;
+  if (nome === "menos") return <Minus size={size} />;
+  if (nome === "cashout") return <RotateCcw size={size} />;
+  return <Clock size={size} />;
+}
+
 export function Pill({ status }) {
   const s = ST[status];
   return (
-    <span className="shrink-0" style={{ display: "inline-block", padding: "3px 9px", borderRadius: 7, fontSize: 11.5, fontWeight: 600, whiteSpace: "nowrap", color: s.fg, background: s.bg, border: `1px solid ${s.bd}` }}>
+    <span className="shrink-0 inline-flex items-center gap-1" style={{ padding: "3px 9px", borderRadius: 7, fontSize: 11.5, fontWeight: 600, whiteSpace: "nowrap", color: s.fg, background: s.bg, border: `1px solid ${s.bd}` }}>
+      <IconeStatus status={status} size={11} />
       {s.label}
+    </span>
+  );
+}
+
+/**
+ * Selo redondo do resultado, para identificar rápido numa lista.
+ * Verde com check, vermelho com x, e assim por diante.
+ */
+export function SeloResultado({ status, size = 28 }) {
+  const s = ST[status];
+  return (
+    <span className="inline-flex items-center justify-center shrink-0"
+      style={{ width: size, height: size, borderRadius: "50%", background: s.bg, color: s.fg, border: `1.5px solid ${s.bd}` }}>
+      <IconeStatus status={status} size={size * 0.5} />
     </span>
   );
 }

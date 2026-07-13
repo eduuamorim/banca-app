@@ -11,7 +11,12 @@ export const maxDuration = 30;
      lê o print sozinho no navegador, com Tesseract.
 ══════════════════════════════════════════════════ */
 
-const GEMINI_MODELO = process.env.GEMINI_MODELO || "gemini-2.0-flash";
+// O modelo do Gemini. Se o principal falhar (renomeado, indisponível),
+// o app tenta os alternativos em ordem. Assim uma mudança no nome do
+// modelo não derruba a leitura.
+const GEMINI_MODELOS = (process.env.GEMINI_MODELO
+  ? [process.env.GEMINI_MODELO]
+  : ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-flash-latest", "gemini-1.5-flash"]);
 const CLAUDE_MODELO = process.env.CLAUDE_MODELO || "claude-sonnet-5";
 
 function escolherProvedor() {
@@ -73,7 +78,7 @@ function lerJson(texto) {
 }
 
 /* ─────────── Gemini ─────────── */
-async function perguntarGemini({ texto, imagem, tipo }) {
+async function perguntarGemini({ texto, imagem, tipo }, tentativa = 0) {
   const partes = [{ text: INSTRUCAO }];
   if (imagem) partes.push({ inline_data: { mime_type: tipo, data: imagem } });
   if (texto) partes.push({ text: `Conteúdo do bilhete:\n\n${texto}` });
@@ -90,11 +95,24 @@ async function perguntarGemini({ texto, imagem, tipo }) {
     signal: AbortSignal.timeout(25000),
   });
 
+  // Limite por minuto: espera e tenta de novo, sozinho, até 2 vezes.
+  // O plano grátis costuma liberar em poucos segundos.
+  if (r.status === 429 && tentativa < 2) {
+    const espera = (tentativa + 1) * 6000;   // 6s, depois 12s
+    await new Promise((ok) => setTimeout(ok, espera));
+    return perguntarGemini({ texto, imagem, tipo }, tentativa + 1);
+  }
+
   if (!r.ok) {
     const e = await r.text();
-    if (r.status === 429) throw new Error("Limite gratuito do Gemini atingido. Tente de novo em um minuto.");
-    if (r.status === 404) throw new Error(`Modelo "${GEMINI_MODELO}" não existe. Troque a variável GEMINI_MODELO.`);
-    throw new Error(`Gemini ${r.status}: ${e.slice(0, 160)}`);
+    // Mensagens específicas ajudam a descobrir o problema de verdade.
+    if (r.status === 429) throw new Error("Limite do Gemini atingido (muitas leituras em pouco tempo, ou o teto diário do plano grátis). Espere um minuto e tente de novo.");
+    if (r.status === 400 && /api key not valid|api_key_invalid/i.test(e))
+      throw new Error("A chave do Google (GOOGLE_API_KEY) não é válida. Confira no Vercel.");
+    if (r.status === 403)
+      throw new Error("A chave do Google existe, mas não tem permissão para a API do Gemini. Ative a Generative Language API no Google AI Studio.");
+    if (r.status === 404) throw new Error(`O modelo "${GEMINI_MODELO}" não foi encontrado. Talvez tenha mudado de nome.`);
+    throw new Error(`Gemini erro ${r.status}: ${e.slice(0, 200)}`);
   }
 
   const d = await r.json();

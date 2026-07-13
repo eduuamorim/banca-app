@@ -1,9 +1,8 @@
 "use client";
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Link2, ImagePlus, Loader2, Sparkles, AlertTriangle, X, Wand2, Cpu, Plus, Trash2, Layers } from "lucide-react";
-import { C, Modal, Input, Select, SelectCasa, Label, Btn, ST, Codigo, Aviso, Avatar } from "@/lib/ui";
+import React, { useState } from "react";
+import { Plus, Trash2, Layers } from "lucide-react";
+import { C, Modal, Input, Select, SelectCasa, Label, Btn, ST, Codigo, Avatar } from "@/lib/ui";
 import { uid, hoje, n, brl, sgn, nomeDoEvento, tituloAposta, pernaVazia, oddTotal, eventoDasPernas } from "@/lib/calc";
-import { lerBilheteNoAparelho, encerrarOcr } from "@/lib/ocrLocal";
 
 /* ═══════════════════════════════════════════════════════
    Preenchimento automático, em cascata:
@@ -14,183 +13,10 @@ import { lerBilheteNoAparelho, encerrarOcr } from "@/lib/ocrLocal";
    MANUAL  → se nada der certo, os campos ficam livres
 ═══════════════════════════════════════════════════════ */
 
-function AutoFill({ token, onDados, me }) {
-  const [url, setUrl] = useState("");
-  const [fase, setFase] = useState(null);      // 'link' | 'ia' | 'ocr' | null
-  const [progresso, setProgresso] = useState(0);
-  const [erro, setErro] = useState("");
-  const [sucesso, setSucesso] = useState("");
-  const [arrastando, setArrastando] = useState(false);
-  const inputArquivo = useRef(null);
-
-  useEffect(() => () => { encerrarOcr(); }, []);
-
-  const chamarApi = async (corpo) => {
-    const r = await fetch("/api/parse", {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
-      body: JSON.stringify(corpo),
-    });
-    return r.json();
-  };
-
-  /* ── link ── */
-  const lerLink = async () => {
-    setFase("link"); setErro(""); setSucesso("");
-    try {
-      const j = await chamarApi({ url });
-      if (!j.ok) { setErro(j.motivo || "Não consegui ler o link."); return; }
-      onDados(j.dados);
-      setSucesso("Lido pelo link. Confira os campos.");
-    } catch {
-      setErro("Falha de conexão.");
-    } finally { setFase(null); }
-  };
-
-  /* ── print: IA primeiro, OCR local depois ── */
-  const lerImagem = useCallback(async (file) => {
-    if (!file || !file.type.startsWith("image/")) return;
-    setErro(""); setSucesso(""); setProgresso(0);
-
-    // tentativa 1 — IA no servidor
-    setFase("ia");
-    let motivoIA = "";
-    try {
-      const base64 = await new Promise((res, rej) => {
-        const r = new FileReader();
-        r.onload = () => res(String(r.result).split(",")[1]);
-        r.onerror = rej;
-        r.readAsDataURL(file);
-      });
-      const j = await chamarApi({ imagem: base64, tipo: file.type });
-      if (j.ok) {
-        onDados(j.dados);
-        setSucesso(`Lido pela IA (${j.provedor === "gemini" ? "Gemini" : "Claude"}). Confira os campos.`);
-        setFase(null);
-        return;
-      }
-      motivoIA = j.motivo || "";
-      // formato ou tamanho não adianta tentar de novo
-      if (j.codigo === "formato" || j.codigo === "grande") {
-        setErro(motivoIA); setFase(null); return;
-      }
-    } catch {
-      motivoIA = "Servidor indisponível.";
-    }
-
-    // tentativa 2 — OCR no próprio aparelho
-    setFase("ocr");
-    try {
-      const d = await lerBilheteNoAparelho(file, setProgresso);
-      if (d.encontrou) {
-        onDados(d);
-        setSucesso("Lido no seu aparelho. Confirme os campos com atenção.");
-      } else {
-        setErro(motivoIA ? `${motivoIA} O OCR também não achou nada.` : "Não reconheci um bilhete nesse print.");
-      }
-    } catch {
-      setErro("Não consegui ler a imagem nem no aparelho.");
-    } finally {
-      setFase(null); setProgresso(0);
-    }
-  }, [onDados, token]);
-
-  // colar com Ctrl+V em qualquer canto do modal
-  useEffect(() => {
-    const onPaste = (e) => {
-      const item = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith("image/"));
-      if (item) { e.preventDefault(); lerImagem(item.getAsFile()); }
-    };
-    window.addEventListener("paste", onPaste);
-    return () => window.removeEventListener("paste", onPaste);
-  }, [lerImagem]);
-
-  const ocupado = fase !== null;
-
-  return (
-    <div className="rounded-2xl p-4" style={{ background: "#FBFBF9", border: `1px dashed ${C.line}` }}>
-      <div className="flex items-center gap-2 mb-3">
-        <Wand2 size={15} style={{ color: C.green }} />
-        <span style={{ fontSize: 12.5, fontWeight: 600, color: C.body }}>Preencher automático</span>
-        <span style={{ fontSize: 11.5, color: C.faint }}>opcional</span>
-        <div className="flex-1" />
-        <span className="inline-flex items-center gap-1.5">
-          <Avatar user={me} size={18} />
-          <span style={{ fontSize: 11.5, color: C.muted }}>{me?.nome}</span>
-        </span>
-      </div>
-
-      {/* link */}
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <Link2 size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: C.faint }} />
-          <Input
-            value={url}
-            onChange={(e) => { setUrl(e.target.value); setErro(""); }}
-            onKeyDown={(e) => e.key === "Enter" && url.trim() && !ocupado && lerLink()}
-            placeholder="Cole o link de compartilhar do bilhete"
-            style={{ paddingLeft: 38, height: 42 }}
-          />
-        </div>
-        <Btn kind="outline" disabled={!url.trim() || ocupado} onClick={lerLink} style={{ height: 42 }}>
-          {fase === "link" ? <Loader2 size={15} className="animate-spin" /> : "Ler"}
-        </Btn>
-      </div>
-
-      <div className="flex items-center gap-3 my-3">
-        <div className="flex-1" style={{ height: 1, background: C.line }} />
-        <span style={{ fontSize: 11, color: C.faint, fontWeight: 600 }}>OU</span>
-        <div className="flex-1" style={{ height: 1, background: C.line }} />
-      </div>
-
-      {/* print */}
-      <div
-        onClick={() => !ocupado && inputArquivo.current?.click()}
-        onDragOver={(e) => { e.preventDefault(); setArrastando(true); }}
-        onDragLeave={() => setArrastando(false)}
-        onDrop={(e) => { e.preventDefault(); setArrastando(false); lerImagem(e.dataTransfer.files?.[0]); }}
-        className="flex flex-col items-center justify-center rounded-xl py-6 cursor-pointer transition"
-        style={{ border: `1.5px dashed ${arrastando ? C.green : C.line}`, background: arrastando ? C.greenSoft : C.card }}
-      >
-        {fase === "ia" && (
-          <>
-            <Loader2 size={20} className="animate-spin mb-2" style={{ color: C.green }} />
-            <p style={{ fontSize: 13, color: C.body }}>Lendo o bilhete...</p>
-          </>
-        )}
-
-        {fase === "ocr" && (
-          <>
-            <Cpu size={20} className="mb-2" style={{ color: C.blue }} />
-            <p style={{ fontSize: 13, color: C.body }}>Lendo no seu aparelho...</p>
-            <div className="mt-2 rounded-full overflow-hidden" style={{ width: 160, height: 4, background: C.line }}>
-              <div style={{ width: `${progresso}%`, height: "100%", background: C.blue, transition: "width .2s" }} />
-            </div>
-            <p className="mt-1.5" style={{ fontSize: 11, color: C.faint }}>primeira vez demora um pouco mais</p>
-          </>
-        )}
-
-        {!ocupado && (
-          <>
-            <ImagePlus size={20} className="mb-2" style={{ color: C.faint }} />
-            <p style={{ fontSize: 13.5, fontWeight: 500, color: C.body }}>Cole o print com Ctrl+V</p>
-            <p className="mt-0.5" style={{ fontSize: 12, color: C.faint }}>ou arraste a imagem, ou toque para escolher</p>
-          </>
-        )}
-
-        <input ref={inputArquivo} type="file" accept="image/*" className="hidden"
-          onChange={(e) => { lerImagem(e.target.files?.[0]); e.target.value = ""; }} />
-      </div>
-
-      {erro && <div className="mt-3"><Aviso tom="amber" icone={AlertTriangle}>{erro} Preencha na mão abaixo.</Aviso></div>}
-      {sucesso && <div className="mt-3"><Aviso tom="green" icone={Sparkles}>{sucesso}</Aviso></div>}
-    </div>
-  );
-}
 
 /* ═══════════════════════ modal ═══════════════════════ */
 
-export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, valorStake, salvarAposta, dia, sessao }) {
+export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, valorStake, salvarAposta, dia }) {
   const inicial = bet && bet.id ? {
     ...bet,
     // Aposta antiga (sem pernas) ganha uma perna a partir do evento e da odd.
@@ -215,7 +41,6 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
   };
 
   const [f, setF] = useState(inicial);
-  const [auto, setAuto] = useState(false);
   const editando = bets.some((b) => b.id === f.id);
 
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
@@ -225,15 +50,15 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
   const pernas = f.pernas || [];
   const multipla = pernas.length > 1;
   const oddProduto = oddTotal(pernas);
-  // A odd que vale: a que veio do print ou que você digitou. O produto é só sugestão.
+  // A odd que vale: a que você digitou, ou o produto das pernas.
   const oddDoBilhete = n(f.odd) > 1 ? n(f.odd) : oddProduto;
 
+  // Enquanto você não editar a odd total na mão, ela acompanha o produto.
+  // Essa flag é mais confiável que comparar números com ponto flutuante.
   const setPerna = (i, k, v) => setF((p) => {
     const arr = p.pernas.map((perna, idx) => (idx === i ? { ...perna, [k]: v } : perna));
-    // Se a odd total está vazia ou seguia o produto, acompanha o novo produto.
     const prod = oddTotal(arr);
-    const seguiaProduto = !p.odd || Math.abs(n(p.odd) - oddTotal(p.pernas)) < 0.0001;
-    return { ...p, pernas: arr, odd: seguiaProduto ? prod : p.odd };
+    return { ...p, pernas: arr, odd: p.oddManual ? p.odd : (prod > 0 ? String(prod.toFixed(2)) : "") };
   });
   const addPerna = () => setF((p) => {
     const arr = [...p.pernas, pernaVazia()];
@@ -243,9 +68,11 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
     const arr = p.pernas.filter((_, idx) => idx !== i);
     const nova = arr.length ? arr : [pernaVazia()];
     const prod = oddTotal(nova);
-    const seguiaProduto = !p.odd || Math.abs(n(p.odd) - oddTotal(p.pernas)) < 0.0001;
-    return { ...p, pernas: nova, odd: seguiaProduto ? prod : p.odd };
+    return { ...p, pernas: nova, odd: p.oddManual ? p.odd : (prod > 0 ? String(prod.toFixed(2)) : "") };
   });
+
+  // Quando você digita na odd total, marca como manual: para de seguir o produto.
+  const setOddManual = (v) => setF((p) => ({ ...p, odd: v, oddManual: true }));
 
   /**
    * Aplica o que foi lido no bilhete.
@@ -253,40 +80,6 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
    * Só EVENTO e ODD vêm do print. A stake é decisão sua e nunca
    * é sobrescrita, mesmo que o bilhete mostre um valor apostado.
    */
-  const aplicar = useCallback((d) => {
-    setF((p) => {
-      const novo = { ...p };
-
-      // A IA pode devolver pernas (bilhete completo) ou só evento+odd (formato antigo).
-      if (Array.isArray(d.pernas) && d.pernas.length) {
-        novo.pernas = d.pernas.map((x) => ({
-          confronto: x.confronto || x.evento || "",
-          mercado: x.mercado || "",
-          selecao: x.selecao || "",
-          odd: x.odd || "",
-          dataJogo: x.dataJogo || "",
-        }));
-      } else if (d.evento || d.odd) {
-        novo.pernas = [{ confronto: d.evento || "", mercado: "", selecao: "", odd: d.odd || "", dataJogo: "" }];
-      }
-
-      // A odd do bilhete vem do print: usamos a que a casa mostra, não a recalculada.
-      // Se a IA não trouxe a total, caímos no produto das pernas.
-      if (n(d.oddTotal) > 1) novo.odd = n(d.oddTotal);
-      else if (n(d.odd) > 1) novo.odd = n(d.odd);
-      else novo.odd = oddTotal(novo.pernas || []);
-
-      if (d.casa) {
-        const alvo = String(d.casa).toLowerCase();
-        const achou = casas.find(
-          (c) => alvo.includes(c.nome.toLowerCase()) || c.nome.toLowerCase().includes(alvo)
-        );
-        if (achou) novo.casaId = achou.id;
-      }
-      return novo;
-    });
-    setAuto(true);
-  }, [casas]);
 
   const ok = oddDoBilhete > 1 && n(f.valor) > 0;
   const ganho = n(f.valor) * (oddDoBilhete - 1);
@@ -303,22 +96,6 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
         </span>
       }>
       <div className="space-y-5">
-
-        {!editando && <AutoFill token={sessao.access_token} onDados={aplicar} me={me} />}
-
-        {auto && (
-          <div className="anim-aviso flex items-center justify-between rounded-lg px-3 py-2" style={{ background: C.blueSoft, border: `1px solid ${C.blueBand}` }}>
-            <p style={{ fontSize: 12.5, color: C.blue }}>O bilhete foi lido. Confira as seleções. A stake continua sendo sua escolha.</p>
-            <button onClick={() => setAuto(false)} style={{ color: C.blue }}><X size={14} /></button>
-          </div>
-        )}
-
-        <div className="grid sm:grid-cols-2 gap-4">
-          <div><Label>Data</Label><Input type="date" value={f.data} onChange={(e) => set("data", e.target.value)} /></div>
-          <div><Label>Casa de aposta</Label>
-            <SelectCasa casas={casas} valor={f.casaId} onChange={(id) => set("casaId", id)} />
-          </div>
-        </div>
 
         <div>
           <div className="flex items-center justify-between mb-2">
@@ -353,21 +130,12 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
                 <Input
                   value={perna.confronto}
                   onChange={(e) => setPerna(i, "confronto", e.target.value)}
-                  placeholder="Confronto: Flamengo x Palmeiras"
+                  placeholder="Times: Inglaterra x Argentina"
                 />
 
                 <div className="grid grid-cols-2 gap-2 mt-2">
                   <Input value={perna.mercado} onChange={(e) => setPerna(i, "mercado", e.target.value)} placeholder="Mercado" />
-                  <Input value={perna.selecao} onChange={(e) => setPerna(i, "selecao", e.target.value)} placeholder="Seleção" />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  <div>
-                    <Input type="number" step="0.01" value={perna.odd} onChange={(e) => setPerna(i, "odd", e.target.value)} placeholder="Odd 1.85" />
-                  </div>
-                  <div>
-                    <Input type="datetime-local" value={perna.dataJogo} onChange={(e) => setPerna(i, "dataJogo", e.target.value)} />
-                  </div>
+                  <Input type="text" inputMode="decimal" value={perna.odd} onChange={(e) => setPerna(i, "odd", e.target.value)} placeholder="Odd 1.85" />
                 </div>
               </div>
             ))}
@@ -391,11 +159,11 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
                 </p>
               </div>
               <div style={{ width: 110 }}>
-                <Input type="number" step="0.01" value={f.odd} onChange={(e) => set("odd", e.target.value)} placeholder={oddProduto ? oddProduto.toFixed(2) : "1.85"} style={{ textAlign: "right", fontWeight: 600 }} />
+                <Input type="text" inputMode="decimal" value={f.odd} onChange={(e) => setOddManual(e.target.value)} placeholder={oddProduto ? oddProduto.toFixed(2) : "1.85"} style={{ textAlign: "right", fontWeight: 600 }} />
               </div>
             </div>
             {multipla && n(f.odd) > 1 && Math.abs(n(f.odd) - oddProduto) > 0.005 && (
-              <button type="button" onClick={() => set("odd", Number(oddProduto.toFixed(4)))}
+              <button type="button" onClick={() => setF((p) => ({ ...p, odd: oddProduto.toFixed(2), oddManual: false }))}
                 className="mt-2 inline-flex items-center gap-1" style={{ fontSize: 11.5, color: C.blue }}>
                 usar o cálculo ({oddProduto.toFixed(2)})
               </button>
@@ -431,16 +199,18 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
           </div>
         </div>
 
-        <div>
-          <Label>Status</Label>
-          <Select value={f.status} onChange={(e) => set("status", e.target.value)}>
-            {Object.entries(ST).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-          </Select>
-        </div>
+        {editando && (
+          <div>
+            <Label>Status</Label>
+            <Select value={f.status} onChange={(e) => set("status", e.target.value)}>
+              {Object.entries(ST).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+            </Select>
+          </div>
+        )}
 
-        {f.status === "cashout" && (
+        {editando && f.status === "cashout" && (
           <div><Label>Valor recebido no cashout</Label>
-            <Input type="number" step="0.01" value={f.cashoutValor} onChange={(e) => set("cashoutValor", e.target.value)} />
+            <Input type="text" inputMode="decimal" value={f.cashoutValor} onChange={(e) => set("cashoutValor", e.target.value)} />
             <p className="mt-1.5" style={{ fontSize: 12.5, color: C.muted }}>Resultado: {sgn(n(f.cashoutValor) - n(f.valor))}</p>
           </div>
         )}
@@ -459,6 +229,10 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
             </div>
           </div>
         )}
+
+        <div><Label>Casa de aposta</Label>
+          <SelectCasa casas={casas} valor={f.casaId} onChange={(id) => set("casaId", id)} />
+        </div>
 
         <div><Label>Observação</Label><Input value={f.obs} onChange={(e) => set("obs", e.target.value)} placeholder="Opcional" /></div>
 

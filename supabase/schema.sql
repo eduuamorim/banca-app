@@ -295,6 +295,37 @@ end
 $$;
 
 -- ══════════════════════════════════════════════════════════
+--  APOSTAS FIXADAS (por usuário)
+--
+--  Cada pessoa fixa as suas. O alfinete de um não aparece
+--  para o outro. Uma linha por par (usuário, aposta).
+-- ══════════════════════════════════════════════════════════
+
+create table if not exists public.fixadas (
+  usuario_id  uuid not null references public.profiles(id) on delete cascade,
+  aposta_id   uuid not null references public.apostas(id) on delete cascade,
+  criado_em   timestamptz not null default now(),
+  primary key (usuario_id, aposta_id)
+);
+
+create index if not exists fixadas_usuario_idx on public.fixadas (usuario_id);
+
+alter table public.fixadas enable row level security;
+
+-- Você só enxerga e mexe nas suas próprias fixadas.
+drop policy if exists fx_ler on public.fixadas;
+create policy fx_ler on public.fixadas
+  for select to authenticated using (auth.uid() = usuario_id);
+
+drop policy if exists fx_inserir on public.fixadas;
+create policy fx_inserir on public.fixadas
+  for insert to authenticated with check (auth.uid() = usuario_id);
+
+drop policy if exists fx_excluir on public.fixadas;
+create policy fx_excluir on public.fixadas
+  for delete to authenticated using (auth.uid() = usuario_id);
+
+-- ══════════════════════════════════════════════════════════
 --  DEPÓSITOS E SAQUES
 --
 --  Movimento de caixa entre você e as casas de aposta.
@@ -509,7 +540,7 @@ do $$
 declare
   t text;
 begin
-  foreach t in array array['apostas', 'movimentos', 'contas'] loop
+  foreach t in array array['apostas', 'movimentos', 'contas', 'fixadas'] loop
     if not exists (
       select 1 from pg_publication_tables
       where pubname = 'supabase_realtime'
