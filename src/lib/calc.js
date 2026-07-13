@@ -477,3 +477,41 @@ export const patrimonio = (saldoBanco, casas, movs, bets) => {
     total: n(saldoBanco) + nasCasas + foraDeCasa,
   };
 };
+
+/* ══════════════════════════════════════════════════
+   MENSAGENS DO CHAT
+
+   Uma conversa só, entre os dois usuários. Cada mensagem
+   tem um autor, um texto, e pode carregar uma aposta anexada.
+══════════════════════════════════════════════════ */
+
+export const msgFromRow = (r) => ({
+  id: r.id,
+  autorId: r.autor_id,
+  texto: r.texto || "",
+  apostaId: r.aposta_id || "",
+  criadoEm: r.criado_em || null,
+});
+
+export const msgToInsert = (m, autorId) => ({
+  autor_id: m.autorId || autorId,
+  texto: (m.texto || "").trim(),
+  aposta_id: m.apostaId || null,
+});
+
+/** Agrupa mensagens por dia, para separadores de data na conversa. */
+export const mensagensPorDia = (msgs) => {
+  const grupos = {};
+  for (const m of msgs) {
+    const dia = (m.criadoEm || "").slice(0, 10);
+    (grupos[dia] = grupos[dia] || []).push(m);
+  }
+  return Object.entries(grupos).sort((a, b) => a[0].localeCompare(b[0]));
+};
+
+/** "14h59", para a bolha da mensagem. */
+export const horaBR = (iso) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, "0")}h${String(d.getMinutes()).padStart(2, "0")}`;
+};

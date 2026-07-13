@@ -1,13 +1,15 @@
 "use client";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { Gauge, Receipt, PieChart, Building2, Settings, Plus, Check, LogOut, Wallet, Landmark } from "lucide-react";
+import { Gauge, Receipt, PieChart, Building2, Settings, Plus, Check, LogOut, Wallet, Landmark, MessageCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { C } from "@/lib/ui";
-import { hoje, brl, sgn, lucro, fechada, betFromRow, betToInsert, betToUpdate, cfgFromRow, cfgToRow, movFromRow, movToInsert, movToUpdate, contaFromRow, contaToInsert, contaToUpdate, totalPorTipo, n } from "@/lib/calc";
+import { hoje, brl, sgn, lucro, fechada, betFromRow, betToInsert, betToUpdate, cfgFromRow, cfgToRow, movFromRow, movToInsert, movToUpdate, contaFromRow, contaToInsert, contaToUpdate, totalPorTipo, n, msgFromRow, msgToInsert } from "@/lib/calc";
 
 import Login from "./Login";
 import Painel from "./Painel";
 import Apostas from "./Apostas";
+import Chat from "./Chat";
+import { prepararSom, tocarDing } from "@/lib/som";
 import Relatorio from "./Relatorio";
 import Casas from "./Casas";
 import Caixa from "./Caixa";
@@ -26,6 +28,10 @@ export default function Root() {
   const [movs, setMovs] = useState([]);
   const [contas, setContas] = useState([]);
   const [fixadas, setFixadas] = useState(new Set());
+  const [msgs, setMsgs] = useState([]);
+  const [naoLidas, setNaoLidas] = useState(0);
+  const qtdMsgAntes = useRef(null);   // quantas msgs havia na última verificação
+  const tabRef = useRef("painel");    // aba atual, para o efeito enxergar sem recriar
 
   const [tab, setTab] = useState("painel");
   const [dia, setDia] = useState(hoje());
@@ -48,7 +54,7 @@ export default function Root() {
 
   // ── carregar tudo ──
   const carregar = useCallback(async () => {
-    const [c, p, ca, ap, mv, ct, fx] = await Promise.all([
+    const [c, p, ca, ap, mv, ct, fx, ms] = await Promise.all([
       supabase.from("config").select("*").eq("id", 1).single(),
       supabase.from("profiles").select("*").order("criado_em"),
       supabase.from("casas").select("*").order("nome"),
@@ -56,6 +62,7 @@ export default function Root() {
       supabase.from("movimentos").select("*").order("data", { ascending: false }).order("criado_em", { ascending: false }),
       supabase.from("contas").select("*").order("criado_em"),
       supabase.from("fixadas").select("aposta_id"),
+      supabase.from("mensagens").select("*").order("criado_em"),
     ]);
     if (c.data) setCfg(cfgFromRow(c.data));
     if (p.data) setUsers(p.data);
@@ -64,6 +71,7 @@ export default function Root() {
     if (mv.data) setMovs(mv.data.map(movFromRow));
     if (ct.data) setContas(ct.data.map(contaFromRow));
     if (fx.data) setFixadas(new Set(fx.data.map((r) => r.aposta_id)));
+    if (ms.data) setMsgs(ms.data.map(msgFromRow));
     setCarregado(true);
   }, []);
 
@@ -76,13 +84,52 @@ export default function Root() {
       .on("postgres_changes", { event: "*", schema: "public", table: "movimentos" }, carregar)
       .on("postgres_changes", { event: "*", schema: "public", table: "contas" }, carregar)
       .on("postgres_changes", { event: "*", schema: "public", table: "fixadas" }, carregar)
+      .on("postgres_changes", { event: "*", schema: "public", table: "mensagens" }, carregar)
       .subscribe();
     return () => supabase.removeChannel(canal);
   }, [sessao, carregar]);
 
   // ── ações no banco ──
+  useEffect(() => { tabRef.current = tab; }, [tab]);
   const meId = sessao?.user?.id;
   const me = users.find((u) => u.id === meId);
+
+  // Prepara o áudio no primeiro toque/clique (exigência dos navegadores).
+  useEffect(() => {
+    const liberar = () => prepararSom();
+    window.addEventListener("pointerdown", liberar, { once: true });
+    window.addEventListener("keydown", liberar, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", liberar);
+      window.removeEventListener("keydown", liberar);
+    };
+  }, []);
+
+  // Detecta mensagem nova da outra pessoa: toca o som e conta as não lidas.
+  useEffect(() => {
+    const antes = qtdMsgAntes.current;
+    qtdMsgAntes.current = msgs.length;
+
+    // primeira carga: só registra o total, não notifica
+    if (antes === null || !meId) return;
+    if (msgs.length <= antes) return;
+
+    // olha só as mensagens que chegaram desde a última verificação
+    const novas = msgs.slice(antes);
+    const deOutro = novas.filter((m) => m.autorId && m.autorId !== meId && !String(m.id).startsWith("tmp-"));
+    if (!deOutro.length) return;
+
+    // se você já está lendo a conversa, não precisa notificar
+    if (tabRef.current === "chat") return;
+
+    tocarDing();
+    setNaoLidas((x) => x + deOutro.length);
+  }, [msgs, meId]);
+
+  // Ao abrir a Conversa, zera o contador.
+  useEffect(() => {
+    if (tab === "chat") setNaoLidas(0);
+  }, [tab]);
 
   const salvarCfg = async (novo) => {
     setCfg(novo);
@@ -137,6 +184,23 @@ export default function Root() {
     if (error) return flash("Erro ao excluir.");
     flash("Casa excluída");
     carregar();
+  };
+
+  const enviarMensagem = async (m) => {
+    // Otimista: aparece na hora. O realtime sincroniza com o outro.
+    const provisorio = { id: "tmp-" + Date.now(), autorId: meId, texto: (m.texto || "").trim(), apostaId: m.apostaId || "", criadoEm: new Date().toISOString() };
+    setMsgs((arr) => [...arr, provisorio]);
+    const { error } = await supabase.from("mensagens").insert(msgToInsert(m, meId));
+    if (error) {
+      // desfaz o provisório se falhou
+      setMsgs((arr) => arr.filter((x) => x.id !== provisorio.id));
+      flash("Não consegui enviar a mensagem.");
+    }
+  };
+
+  const excluirMensagem = async (id) => {
+    setMsgs((arr) => arr.filter((x) => x.id !== id));
+    await supabase.from("mensagens").delete().eq("id", id);
   };
 
   const alternarFixada = async (apostaId) => {
@@ -209,6 +273,7 @@ export default function Root() {
   const nav = [
     { id: "painel", label: "Painel", icon: Gauge },
     { id: "apostas", label: "Apostas", icon: Receipt },
+    { id: "chat", label: "Conversa", icon: MessageCircle, badge: naoLidas },
     { id: "relatorio", label: "Relatório", icon: PieChart },
     { id: "patrimonio", label: "Patrimônio", curto: "Patrim.", icon: Landmark },
     { id: "caixa", label: "Caixa", icon: Wallet },
@@ -219,6 +284,7 @@ export default function Root() {
   const ctx = {
     cfg, salvarCfg, bets, casas, contas, users, movs, me, meta, stop, valorStake, flash, dia, setDia,
     fixadas, alternarFixada,
+    msgs, enviarMensagem, excluirMensagem, setTab,
     doDia, lucroDia, lucroTotal, depositado, sacado,
     setModalAposta, salvarAposta, mudarStatus, excluirAposta,
     salvarCasa, excluirCasa, salvarConta, excluirConta, salvarMov, excluirMov, sair, sessao,
@@ -249,6 +315,11 @@ export default function Root() {
               <button key={i.id} onClick={() => setTab(i.id)} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition"
                 style={{ background: on ? C.navSoft : "transparent", color: on ? "#fff" : "#8FA1A6", fontWeight: on ? 500 : 400, fontSize: 14.5 }}>
                 <i.icon size={17} />{i.label}
+                {i.badge > 0 && (
+                  <span className="num ml-auto inline-flex items-center justify-center" style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: C.red, color: "#fff", fontSize: 11, fontWeight: 700 }}>
+                    {i.badge > 9 ? "9+" : i.badge}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -286,6 +357,7 @@ export default function Root() {
         <main className="max-w-5xl mx-auto px-4 sm:px-8 py-6 sm:py-10">
           {tab === "painel" && <Painel {...ctx} />}
           {tab === "apostas" && <Apostas {...ctx} />}
+          {tab === "chat" && <Chat {...ctx} />}
           {tab === "relatorio" && <Relatorio {...ctx} />}
           {tab === "patrimonio" && <Patrimonio cfg={cfg} casas={casas} movs={movs} bets={bets} modo="completo" />}
           {tab === "caixa" && <Caixa {...ctx} />}
@@ -302,7 +374,14 @@ export default function Root() {
             <button key={i.id} onClick={() => setTab(i.id)}
               className="flex-1 flex flex-col items-center gap-1 py-2.5 min-w-0"
               style={{ color: on ? C.green : C.faint, transition: "color .13s ease" }}>
-              <i.icon size={17} />
+              <span className="relative">
+                <i.icon size={17} />
+                {i.badge > 0 && (
+                  <span className="num absolute inline-flex items-center justify-center" style={{ top: -6, right: -9, minWidth: 15, height: 15, padding: "0 4px", borderRadius: 8, background: C.red, color: "#fff", fontSize: 9.5, fontWeight: 700 }}>
+                    {i.badge > 9 ? "9+" : i.badge}
+                  </span>
+                )}
+              </span>
               <span className="truncate w-full text-center" style={{ fontSize: 9, fontWeight: on ? 600 : 400 }}>
                 {i.curto || i.label}
               </span>

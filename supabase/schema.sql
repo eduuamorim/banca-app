@@ -326,6 +326,43 @@ create policy fx_excluir on public.fixadas
   for delete to authenticated using (auth.uid() = usuario_id);
 
 -- ══════════════════════════════════════════════════════════
+--  CHAT ENTRE OS DOIS USUÁRIOS
+--
+--  Uma conversa só, compartilhada. Como o app é de duas
+--  pessoas, não precisa de "salas": toda mensagem é da
+--  dupla. Quem enviou fica registrado em autor_id.
+--
+--  Uma aposta pode vir anexada (aposta_id): a mensagem
+--  então mostra o bilhete como um cartão clicável.
+-- ══════════════════════════════════════════════════════════
+
+create table if not exists public.mensagens (
+  id         uuid primary key default gen_random_uuid(),
+  autor_id   uuid not null references public.profiles(id) on delete cascade,
+  texto      text not null default '',
+  aposta_id  uuid references public.apostas(id) on delete set null,
+  criado_em  timestamptz not null default now()
+);
+
+create index if not exists mensagens_criado_idx on public.mensagens (criado_em);
+
+alter table public.mensagens enable row level security;
+
+-- Os dois leem tudo. Cada um só envia em seu próprio nome.
+drop policy if exists msg_ler on public.mensagens;
+create policy msg_ler on public.mensagens
+  for select to authenticated using (true);
+
+drop policy if exists msg_inserir on public.mensagens;
+create policy msg_inserir on public.mensagens
+  for insert to authenticated with check (auth.uid() = autor_id);
+
+-- Você pode apagar as suas mensagens.
+drop policy if exists msg_excluir on public.mensagens;
+create policy msg_excluir on public.mensagens
+  for delete to authenticated using (auth.uid() = autor_id);
+
+-- ══════════════════════════════════════════════════════════
 --  DEPÓSITOS E SAQUES
 --
 --  Movimento de caixa entre você e as casas de aposta.
@@ -540,7 +577,7 @@ do $$
 declare
   t text;
 begin
-  foreach t in array array['apostas', 'movimentos', 'contas', 'fixadas'] loop
+  foreach t in array array['apostas', 'movimentos', 'contas', 'fixadas', 'mensagens'] loop
     if not exists (
       select 1 from pg_publication_tables
       where pubname = 'supabase_realtime'

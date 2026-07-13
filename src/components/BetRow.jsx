@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from "react";
-import { Pin, Pencil, Trash2, Check, X, MoreHorizontal, ExternalLink } from "lucide-react";
+import { Pin, ChevronDown, Pencil, Trash2, Check, X, MoreHorizontal, ExternalLink } from "lucide-react";
 import { C, Pill, SeloResultado, Btn, Money, Codigo, IconeCasa, Confirmar, Input, Label, Avatar } from "@/lib/ui";
 import { n, brl, lucro, fechada, tituloAposta, dataHoraBR, pernasNormalizadas } from "@/lib/calc";
 
@@ -18,6 +18,7 @@ export default function BetRow({ b, casas, users, first, fixada, alternarFixada,
   const [confirmar, setConfirmar] = useState(null);
   const [cashout, setCashout] = useState("");
   const [excluindo, setExcluindo] = useState(false);
+  const [aberto, setAberto] = useState(true);  // começa aberto; o cabeçalho fecha/abre
 
   const casa = casas.find((c) => c.id === b.casaId);
   const u = users.find((x) => x.id === b.usuarioId);
@@ -61,15 +62,16 @@ export default function BetRow({ b, casas, users, first, fixada, alternarFixada,
       <div className="px-3 sm:px-4 py-3" style={{ borderTop: first ? "none" : `1px solid ${C.lineSoft}` }}>
         <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${C.line}`, borderLeft: `3px solid ${corBorda}`, background: C.card }}>
 
-          {/* ── cabeçalho do bilhete ── */}
-          <div className="flex items-center gap-2.5 px-4 py-3" style={{ borderBottom: `1px solid ${C.lineSoft}`, background: "#FCFCFA" }}>
-            <button onClick={() => alternarFixada(b.id)} title={fixada ? "Desafixar" : "Fixar no topo"}
+          {/* ── cabeçalho do bilhete (clique alterna aberto/fechado) ── */}
+          <div className="flex items-center gap-2.5 px-4 py-3 cursor-pointer select-none" style={{ borderBottom: aberto ? `1px solid ${C.lineSoft}` : "none", background: "#FCFCFA" }}
+            onClick={() => setAberto((v) => !v)}>
+            <button onClick={(e) => { e.stopPropagation(); alternarFixada(b.id); }} title={fixada ? "Desafixar" : "Fixar no topo"}
               className="shrink-0 p-1 rounded-md" style={{ color: fixada ? C.amber : C.faint }}>
               {fixada ? <Pin size={16} fill={C.amber} /> : <Pin size={16} />}
             </button>
 
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 min-w-0">
+              <div className="flex items-center gap-2 min-w-0" onClick={(e) => e.stopPropagation()} style={{ cursor: "auto", width: "fit-content", maxWidth: "100%" }}>
                 <span className="truncate" style={{ fontSize: 13, fontWeight: 700, color: C.ink }}>
                   {tituloBilhete}
                 </span>
@@ -84,7 +86,12 @@ export default function BetRow({ b, casas, users, first, fixada, alternarFixada,
             {resolvida
               ? <SeloResultado status={b.status} size={26} />
               : <Pill status={b.status} />}
+
+            <ChevronDown size={16} className="shrink-0" style={{ color: C.faint, transform: aberto ? "rotate(180deg)" : "none", transition: "transform .15s ease" }} />
           </div>
+
+          {aberto && (
+          <div className="anim-detalhe">
 
           {/* ── pernas ── */}
           <div>
@@ -168,6 +175,8 @@ export default function BetRow({ b, casas, users, first, fixada, alternarFixada,
               <Btn size="sm" kind="outline" onClick={() => pedir("void")}>Anulada</Btn>
               <Btn size="sm" kind="outline" onClick={() => pedir("cashout")}>Cashout</Btn>
             </div>
+          )}
+          </div>
           )}
         </div>
       </div>

@@ -31,7 +31,7 @@ Não pule passos. Não faça fora de ordem. Se travar, vá até o final do guia,
 
 Se você **já publicou** e está só atualizando, faça duas coisas:
 
-**1. Rode o `schema.sql` de novo.** Ele adiciona o bilhete às apostas, a tabela de apostas fixadas (cada um fixa as suas) e as travas de segurança. Nada é apagado.
+**1. Rode o `schema.sql` de novo.** Ele adiciona o chat entre vocês dois (tabela de mensagens), o bilhete, as fixadas e as travas. Nada é apagado.
 
 **2. Suba os arquivos novos no GitHub.** A Vercel republica sozinha.
 
