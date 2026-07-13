@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { Gauge, Receipt, PieChart, Building2, Settings, Plus, Check, LogOut, Wallet, Landmark, MessageCircle } from "lucide-react";
+import { Gauge, Receipt, PieChart, Building2, Settings, Plus, Check, LogOut, Wallet, Landmark } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { C } from "@/lib/ui";
 import { hoje, brl, sgn, lucro, fechada, betFromRow, betToInsert, betToUpdate, cfgFromRow, cfgToRow, movFromRow, movToInsert, movToUpdate, contaFromRow, contaToInsert, contaToUpdate, totalPorTipo, n, msgFromRow, msgToInsert } from "@/lib/calc";
@@ -32,6 +32,8 @@ export default function Root() {
   const [naoLidas, setNaoLidas] = useState(0);
   const qtdMsgAntes = useRef(null);   // quantas msgs havia na última verificação
   const tabRef = useRef("painel");    // aba atual, para o efeito enxergar sem recriar
+  const [chatAberto, setChatAberto] = useState(false);
+  const chatAbertoRef = useRef(false);
 
   const [tab, setTab] = useState("painel");
   const [dia, setDia] = useState(hoje());
@@ -91,6 +93,7 @@ export default function Root() {
 
   // ── ações no banco ──
   useEffect(() => { tabRef.current = tab; }, [tab]);
+  useEffect(() => { chatAbertoRef.current = chatAberto; }, [chatAberto]);
   const meId = sessao?.user?.id;
   const me = users.find((u) => u.id === meId);
 
@@ -119,17 +122,17 @@ export default function Root() {
     const deOutro = novas.filter((m) => m.autorId && m.autorId !== meId && !String(m.id).startsWith("tmp-"));
     if (!deOutro.length) return;
 
-    // se você já está lendo a conversa, não precisa notificar
-    if (tabRef.current === "chat") return;
+    // se a conversa já está aberta na sua frente, não precisa notificar
+    if (chatAbertoRef.current) return;
 
     tocarDing();
     setNaoLidas((x) => x + deOutro.length);
   }, [msgs, meId]);
 
-  // Ao abrir a Conversa, zera o contador.
+  // Ao abrir a bolha da conversa, zera o contador.
   useEffect(() => {
-    if (tab === "chat") setNaoLidas(0);
-  }, [tab]);
+    if (chatAberto) setNaoLidas(0);
+  }, [chatAberto]);
 
   const salvarCfg = async (novo) => {
     setCfg(novo);
@@ -273,7 +276,6 @@ export default function Root() {
   const nav = [
     { id: "painel", label: "Painel", icon: Gauge },
     { id: "apostas", label: "Apostas", icon: Receipt },
-    { id: "chat", label: "Conversa", icon: MessageCircle, badge: naoLidas },
     { id: "relatorio", label: "Relatório", icon: PieChart },
     { id: "patrimonio", label: "Patrimônio", curto: "Patrim.", icon: Landmark },
     { id: "caixa", label: "Caixa", icon: Wallet },
@@ -357,7 +359,6 @@ export default function Root() {
         <main className="max-w-5xl mx-auto px-4 sm:px-8 py-6 sm:py-10">
           {tab === "painel" && <Painel {...ctx} />}
           {tab === "apostas" && <Apostas {...ctx} />}
-          {tab === "chat" && <Chat {...ctx} />}
           {tab === "relatorio" && <Relatorio {...ctx} />}
           {tab === "patrimonio" && <Patrimonio cfg={cfg} casas={casas} movs={movs} bets={bets} modo="completo" />}
           {tab === "caixa" && <Caixa {...ctx} />}
@@ -389,6 +390,9 @@ export default function Root() {
           );
         })}
       </nav>
+
+      {/* balão de chat flutuante, visível em qualquer aba */}
+      <BolhaChat {...ctx} naoLidas={naoLidas} aberto={chatAberto} setAberto={setChatAberto} />
 
       {modalAposta && (
         <BetModal

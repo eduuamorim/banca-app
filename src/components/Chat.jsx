@@ -69,7 +69,7 @@ function SeletorAposta({ bets, onEscolher, onFechar }) {
 }
 
 export default function Chat(p) {
-  const { msgs, users, me, bets, enviarMensagem, excluirMensagem, setTab, setModalAposta } = p;
+  const { msgs, users, me, bets, enviarMensagem, excluirMensagem, setModalAposta, embutido } = p;
   const [texto, setTexto] = useState("");
   const [anexo, setAnexo] = useState(null);       // aposta escolhida para anexar
   const [seletor, setSeletor] = useState(false);
@@ -92,17 +92,19 @@ export default function Chat(p) {
   const outro = users.find((u) => u.id !== me.id);
 
   return (
-    <div className="flex flex-col" style={{ height: "calc(100dvh - 140px)", minHeight: 420 }}>
-      {/* topo */}
-      <div className="flex items-center gap-2 pb-3" style={{ borderBottom: `1px solid ${C.lineSoft}` }}>
-        <MessageCircle size={18} style={{ color: C.blue }} />
-        <h1 style={{ fontSize: 17, fontWeight: 600 }}>Conversa</h1>
-        {outro && (
-          <span className="ml-auto inline-flex items-center gap-1.5" style={{ fontSize: 12.5, color: C.muted }}>
-            com <Avatar user={outro} size={18} /> {outro.nome}
-          </span>
-        )}
-      </div>
+    <div className="flex flex-col" style={embutido ? { height: "100%" } : { height: "calc(100dvh - 140px)", minHeight: 420 }}>
+      {/* topo (só quando é aba; na bolha o cabeçalho é da própria janela) */}
+      {!embutido && (
+        <div className="flex items-center gap-2 pb-3" style={{ borderBottom: `1px solid ${C.lineSoft}` }}>
+          <MessageCircle size={18} style={{ color: C.blue }} />
+          <h1 style={{ fontSize: 17, fontWeight: 600 }}>Conversa</h1>
+          {outro && (
+            <span className="ml-auto inline-flex items-center gap-1.5" style={{ fontSize: 12.5, color: C.muted }}>
+              com <Avatar user={outro} size={18} /> {outro.nome}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* mensagens */}
       <div className="flex-1 overflow-y-auto py-4 space-y-4">
