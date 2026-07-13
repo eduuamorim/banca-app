@@ -33,6 +33,8 @@ export default function Root() {
   const qtdMsgAntes = useRef(null);   // quantas msgs havia na última verificação
   const tabRef = useRef("painel");    // aba atual, para o efeito enxergar sem recriar
   const [chatAberto, setChatAberto] = useState(false);
+  const [lidoAte, setLidoAte] = useState(null);
+  const [leituras, setLeituras] = useState({});   // usuarioId -> lido_ate (para o "visto")
   const chatAbertoRef = useRef(false);
 
   const [tab, setTab] = useState("painel");
@@ -56,7 +58,7 @@ export default function Root() {
 
   // ── carregar tudo ──
   const carregar = useCallback(async () => {
-    const [c, p, ca, ap, mv, ct, fx, ms] = await Promise.all([
+    const [c, p, ca, ap, mv, ct, fx, ms, lc] = await Promise.all([
       supabase.from("config").select("*").eq("id", 1).single(),
       supabase.from("profiles").select("*").order("criado_em"),
       supabase.from("casas").select("*").order("nome"),
@@ -65,6 +67,7 @@ export default function Root() {
       supabase.from("contas").select("*").order("criado_em"),
       supabase.from("fixadas").select("aposta_id"),
       supabase.from("mensagens").select("*").order("criado_em"),
+      supabase.from("leitura_chat").select("usuario_id, lido_ate"),
     ]);
     if (c.data) setCfg(cfgFromRow(c.data));
     if (p.data) setUsers(p.data);
@@ -74,6 +77,12 @@ export default function Root() {
     if (ct.data) setContas(ct.data.map(contaFromRow));
     if (fx.data) setFixadas(new Set(fx.data.map((r) => r.aposta_id)));
     if (ms.data) setMsgs(ms.data.map(msgFromRow));
+    if (lc?.data) {
+      const mapa = {};
+      lc.data.forEach((r) => { mapa[r.usuario_id] = r.lido_ate; });
+      setLeituras(mapa);
+      if (mapa[meId]) setLidoAte(mapa[meId]);
+    }
     setCarregado(true);
   }, []);
 
@@ -87,6 +96,7 @@ export default function Root() {
       .on("postgres_changes", { event: "*", schema: "public", table: "contas" }, carregar)
       .on("postgres_changes", { event: "*", schema: "public", table: "fixadas" }, carregar)
       .on("postgres_changes", { event: "*", schema: "public", table: "mensagens" }, carregar)
+      .on("postgres_changes", { event: "*", schema: "public", table: "leitura_chat" }, carregar)
       .subscribe();
     return () => supabase.removeChannel(canal);
   }, [sessao, carregar]);
@@ -108,31 +118,35 @@ export default function Root() {
     };
   }, []);
 
-  // Detecta mensagem nova da outra pessoa: toca o som e conta as não lidas.
+  // Detecta mensagem nova da outra pessoa: toca o som se acabou de chegar.
+  // A CONTAGEM de não lidas vem da marca de leitura (lidoAte), não da sessão.
   useEffect(() => {
     const antes = qtdMsgAntes.current;
     qtdMsgAntes.current = msgs.length;
-
-    // primeira carga: só registra o total, não notifica
-    if (antes === null || !meId) return;
+    if (antes === null || !meId) return;      // primeira carga: sem som
     if (msgs.length <= antes) return;
 
-    // olha só as mensagens que chegaram desde a última verificação
     const novas = msgs.slice(antes);
     const deOutro = novas.filter((m) => m.autorId && m.autorId !== meId && !String(m.id).startsWith("tmp-"));
     if (!deOutro.length) return;
+    if (chatAbertoRef.current) return;         // já está lendo
 
-    // se a conversa já está aberta na sua frente, não precisa notificar
-    if (chatAbertoRef.current) return;
-
-    tocarDing();
-    setNaoLidas((x) => x + deOutro.length);
+    tocarDing();                                // só o som; a contagem é recalculada abaixo
   }, [msgs, meId]);
 
-  // Ao abrir a bolha da conversa, zera o contador.
+  // Conta as não lidas comparando com a marca de leitura (persistente).
+  // Só o que o OUTRO enviou DEPOIS da sua última leitura conta.
   useEffect(() => {
-    if (chatAberto) setNaoLidas(0);
-  }, [chatAberto]);
+    if (!meId) return;
+    if (chatAberto) { marcarLido(); return; }
+    const marca = lidoAte ? new Date(lidoAte).getTime() : 0;
+    const qtd = msgs.filter((m) =>
+      m.autorId && m.autorId !== meId &&
+      !String(m.id).startsWith("tmp-") &&
+      m.criadoEm && new Date(m.criadoEm).getTime() > marca
+    ).length;
+    setNaoLidas(qtd);
+  }, [msgs, meId, lidoAte, chatAberto]);
 
   const salvarCfg = async (novo) => {
     setCfg(novo);
@@ -187,6 +201,15 @@ export default function Root() {
     if (error) return flash("Erro ao excluir.");
     flash("Casa excluída");
     carregar();
+  };
+
+  // Marca a conversa como lida até agora, no banco. Chamado ao abrir o chat.
+  const marcarLido = async () => {
+    const agora = new Date().toISOString();
+    setLidoAte(agora);
+    setNaoLidas(0);
+    if (!meId) return;
+    await supabase.from("leitura_chat").upsert({ usuario_id: meId, lido_ate: agora }, { onConflict: "usuario_id" });
   };
 
   const enviarMensagem = async (m) => {
@@ -286,7 +309,7 @@ export default function Root() {
   const ctx = {
     cfg, salvarCfg, bets, casas, contas, users, movs, me, meta, stop, valorStake, flash, dia, setDia,
     fixadas, alternarFixada,
-    msgs, enviarMensagem, excluirMensagem, setTab,
+    msgs, enviarMensagem, excluirMensagem, setTab, leituras,
     doDia, lucroDia, lucroTotal, depositado, sacado,
     setModalAposta, salvarAposta, mudarStatus, excluirAposta,
     salvarCasa, excluirCasa, salvarConta, excluirConta, salvarMov, excluirMov, sair, sessao,

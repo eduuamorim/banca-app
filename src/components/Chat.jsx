@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
-import { Send, Paperclip, X, Trash2, MessageCircle } from "lucide-react";
+import { Send, Paperclip, X, Trash2, MessageCircle, Check, CheckCheck } from "lucide-react";
 import { C, Avatar, Codigo, Empty } from "@/lib/ui";
 import { n, brl, dBR, tituloAposta, mensagensPorDia, horaBR } from "@/lib/calc";
 
@@ -69,7 +69,7 @@ function SeletorAposta({ bets, onEscolher, onFechar }) {
 }
 
 export default function Chat(p) {
-  const { msgs, users, me, bets, enviarMensagem, excluirMensagem, setModalAposta, embutido } = p;
+  const { msgs, users, me, bets, enviarMensagem, excluirMensagem, setModalAposta, embutido, leituras = {} } = p;
   const [texto, setTexto] = useState("");
   const [anexo, setAnexo] = useState(null);       // aposta escolhida para anexar
   const [seletor, setSeletor] = useState(false);
@@ -86,6 +86,16 @@ export default function Chat(p) {
     enviarMensagem({ texto: t, apostaId: anexo?.id || "" });
     setTexto("");
     setAnexo(null);
+  };
+
+  // Uma mensagem minha foi "lida" se o outro usuário marcou leitura
+  // até um instante posterior ao envio dela.
+  const foiLida = (m) => {
+    if (!m.criadoEm) return false;
+    const tMsg = new Date(m.criadoEm).getTime();
+    return Object.entries(leituras).some(([uid, lido]) =>
+      uid !== me.id && lido && new Date(lido).getTime() >= tMsg
+    );
   };
 
   const porDia = mensagensPorDia(msgs);
@@ -141,6 +151,11 @@ export default function Chat(p) {
                           )}
                           <div className="flex items-center gap-1.5 justify-end mt-1">
                             <span className="num" style={{ fontSize: 10, color: meu ? "rgba(255,255,255,.7)" : C.faint }}>{horaBR(m.criadoEm)}</span>
+                            {meu && !String(m.id).startsWith("tmp-") && (
+                              <span title={foiLida(m) ? "Lida" : "Enviada"} style={{ display: "inline-flex", color: foiLida(m) ? "#8FD4FF" : "rgba(255,255,255,.6)" }}>
+                                {foiLida(m) ? <CheckCheck size={13} /> : <Check size={12} />}
+                              </span>
+                            )}
                             {meu && (
                               <button onClick={() => excluirMensagem(m.id)} className="opacity-0 group-hover:opacity-100 transition" style={{ color: "rgba(255,255,255,.7)" }} title="Apagar">
                                 <Trash2 size={11} />

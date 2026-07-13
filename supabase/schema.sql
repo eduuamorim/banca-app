@@ -363,6 +363,35 @@ create policy msg_excluir on public.mensagens
   for delete to authenticated using (auth.uid() = autor_id);
 
 -- ══════════════════════════════════════════════════════════
+--  LEITURA DO CHAT (por usuário)
+--
+--  Guarda até quando cada pessoa já leu a conversa. Assim,
+--  ao abrir o app, contamos como "não lida" só o que chegou
+--  depois da última leitura. É individual: cada um tem a sua.
+-- ══════════════════════════════════════════════════════════
+
+create table if not exists public.leitura_chat (
+  usuario_id  uuid primary key references public.profiles(id) on delete cascade,
+  lido_ate    timestamptz not null default now()
+);
+
+alter table public.leitura_chat enable row level security;
+
+-- Todos podem VER as marcas de leitura (é o que permite o "visto":
+-- eu preciso saber até quando você leu). Mas só o dono EDITA a sua.
+drop policy if exists lc_ler on public.leitura_chat;
+create policy lc_ler on public.leitura_chat
+  for select to authenticated using (true);
+
+drop policy if exists lc_inserir on public.leitura_chat;
+create policy lc_inserir on public.leitura_chat
+  for insert to authenticated with check (auth.uid() = usuario_id);
+
+drop policy if exists lc_editar on public.leitura_chat;
+create policy lc_editar on public.leitura_chat
+  for update to authenticated using (auth.uid() = usuario_id) with check (auth.uid() = usuario_id);
+
+-- ══════════════════════════════════════════════════════════
 --  DEPÓSITOS E SAQUES
 --
 --  Movimento de caixa entre você e as casas de aposta.
@@ -577,7 +606,7 @@ do $$
 declare
   t text;
 begin
-  foreach t in array array['apostas', 'movimentos', 'contas', 'fixadas', 'mensagens'] loop
+  foreach t in array array['apostas', 'movimentos', 'contas', 'fixadas', 'mensagens', 'leitura_chat'] loop
     if not exists (
       select 1 from pg_publication_tables
       where pubname = 'supabase_realtime'

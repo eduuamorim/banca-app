@@ -37,7 +37,7 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
     status: "aberta",
     cashoutValor: "",
     obs: "",
-    pernas: [pernaVazia()],
+    pernas: [{ confronto: "", selecao: "", mercado: "", odd: "", dataJogo: "" }],
   };
 
   const [f, setF] = useState(inicial);
