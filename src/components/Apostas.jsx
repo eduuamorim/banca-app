@@ -74,7 +74,13 @@ export default function Apostas(p) {
 
   const inv = lista.filter(fechada).reduce((s, b) => s + n(b.valor), 0);
   const luc = lista.filter(fechada).reduce((s, b) => s + lucro(b), 0);
-  const abertas = lista.filter((b) => !fechada(b)).length;
+  const listaAbertas = lista.filter((b) => !fechada(b));
+  const abertas = listaAbertas.length;
+
+  // Previsão de todas as abertas (respeita o filtro atual da tela).
+  // Se todas ganharem: soma dos lucros potenciais. Se todas perderem: menos a soma das stakes.
+  const seGanharTudo = listaAbertas.reduce((s, b) => s + n(b.valor) * (n(b.odd) - 1), 0);
+  const sePerderTudo = -listaAbertas.reduce((s, b) => s + n(b.valor), 0);
 
   const grupos = useMemo(() => {
     const m = {};
@@ -213,6 +219,18 @@ export default function Apostas(p) {
             <Stat k="Investido" v={brl(inv)} />
             <Stat k="Resultado" v={sgn(luc)} cor={luc > 0 ? C.green : luc < 0 ? C.red : C.ink} />
             <Stat k="ROI" v={inv ? `${((luc / inv) * 100).toFixed(1)}%` : "\u2014"} />
+          </div>
+        )}
+
+        {/* previsão de todas as abertas */}
+        {abertas > 0 && (
+          <div className="flex flex-wrap items-center gap-x-8 gap-y-2 mt-4 pt-4" style={{ borderTop: `1px solid ${C.lineSoft}` }}>
+            <span style={{ fontSize: 12.5, color: C.muted }}>
+              Se as {abertas} abertas ganharem <Money v={seGanharTudo} prefix color={C.green} weight={700} />
+            </span>
+            <span style={{ fontSize: 12.5, color: C.muted }}>
+              Se todas perderem <Money v={sePerderTudo} prefix color={C.red} weight={700} />
+            </span>
           </div>
         )}
       </Card>
