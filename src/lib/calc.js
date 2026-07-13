@@ -515,3 +515,56 @@ export const horaBR = (iso) => {
   const d = new Date(iso);
   return `${String(d.getHours()).padStart(2, "0")}h${String(d.getMinutes()).padStart(2, "0")}`;
 };
+
+/* ══════════════════════════════════════════════════
+   EVENTOS DO BILHETE (agrupamento visual)
+
+   As pernas continuam planas no banco (cada uma com seu
+   confronto). Na tela, agrupamos por confronto para mostrar
+   "eventos": um jogo com várias seleções dentro.
+
+   Assim uma aposta pode ter vários eventos, cada um com
+   quantas seleções você quiser, sem mudar o banco.
+══════════════════════════════════════════════════ */
+
+/** Agrupa as pernas por confronto, preservando a ordem. */
+export const agruparPorEvento = (pernas) => {
+  const grupos = [];
+  const indice = {};
+  for (const p of (pernas || [])) {
+    const chave = (p.confronto || "").trim();
+    if (!(chave in indice)) {
+      indice[chave] = grupos.length;
+      grupos.push({ confronto: chave, selecoes: [] });
+    }
+    grupos[indice[chave]].selecoes.push({
+      selecao: p.selecao || "",
+      mercado: p.mercado || "",
+      odd: p.odd ?? "",
+    });
+  }
+  return grupos.length ? grupos : [{ confronto: "", selecoes: [selecaoVazia()] }];
+};
+
+/** Desmonta os eventos de volta em pernas planas, para gravar. */
+export const achatarEventos = (eventos) => {
+  const pernas = [];
+  for (const ev of (eventos || [])) {
+    for (const s of (ev.selecoes || [])) {
+      pernas.push({
+        confronto: (ev.confronto || "").trim(),
+        selecao: (s.selecao || "").trim(),
+        mercado: (s.mercado || "").trim(),
+        odd: n(s.odd),
+        dataJogo: "",
+      });
+    }
+  }
+  return pernas;
+};
+
+/** Uma seleção vazia (jogador + tipo + odd). */
+export const selecaoVazia = () => ({ selecao: "", mercado: "", odd: "" });
+
+/** Um evento vazio (um jogo com uma seleção em branco). */
+export const eventoVazio = () => ({ confronto: "", selecoes: [selecaoVazia()] });

@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import { Pin, ChevronDown, Pencil, Trash2, Check, X, MoreHorizontal, ExternalLink } from "lucide-react";
 import { C, Pill, SeloResultado, Btn, Money, Codigo, IconeCasa, Confirmar, Input, Label, Avatar } from "@/lib/ui";
-import { n, brl, lucro, fechada, tituloAposta, dataHoraBR, pernasNormalizadas } from "@/lib/calc";
+import { n, brl, lucro, fechada, tituloAposta, dataHoraBR, pernasNormalizadas, agruparPorEvento } from "@/lib/calc";
 
 /* Cada resolução mostra a consequência em reais ANTES de confirmar. */
 const ACOES = {
@@ -27,6 +27,7 @@ export default function BetRow({ b, casas, users, first, fixada, alternarFixada,
   const titulo = tituloAposta(b);
 
   const pernasBilhete = pernasNormalizadas({ pernas: b.pernas, evento: b.evento, odd: b.odd });
+  const eventosBilhete = agruparPorEvento(pernasBilhete);
   const multipla = (b.tipo === "multipla") || pernasBilhete.length > 1;
 
   // O nome do bilhete: o confronto cadastrado, com o tipo na frente.
@@ -93,19 +94,24 @@ export default function BetRow({ b, casas, users, first, fixada, alternarFixada,
           {aberto && (
           <div className="anim-detalhe">
 
-          {/* ── pernas ── */}
+          {/* ── seleções agrupadas por jogo ── */}
           <div>
-            {pernasBilhete.map((perna, i) => (
-              <div key={i} className="px-4 py-3" style={{ borderTop: i === 0 ? "none" : `1px solid ${C.lineSoft}` }}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    {perna.confronto && <p style={{ fontSize: 13.5, fontWeight: 600, color: C.ink }}>{perna.confronto}</p>}
-                    {perna.mercado && <p style={{ fontSize: 12.5, color: C.body, marginTop: 1 }}>{perna.mercado}</p>}
+            {eventosBilhete.map((ev, ie) => (
+              <div key={ie} style={{ borderTop: ie === 0 ? "none" : `1px solid ${C.lineSoft}` }}>
+                {ev.confronto && (
+                  <p className="px-4 pt-3 pb-1" style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>{ev.confronto}</p>
+                )}
+                {ev.selecoes.map((s, is) => (
+                  <div key={is} className="px-4 py-2 flex items-start justify-between gap-3" style={{ paddingLeft: ev.confronto ? 18 : 16 }}>
+                    <div className="min-w-0">
+                      {s.selecao && <p style={{ fontSize: 13, fontWeight: 600, color: C.ink }}>{s.selecao}</p>}
+                      {s.mercado && <p style={{ fontSize: 12, color: C.muted, marginTop: 1 }}>{s.mercado}</p>}
+                    </div>
+                    {n(s.odd) > 0 && multipla && (
+                      <span className="num shrink-0" style={{ fontSize: 12.5, fontWeight: 600, color: C.body }}>{n(s.odd).toFixed(2)}</span>
+                    )}
                   </div>
-                  {n(perna.odd) > 0 && multipla && (
-                    <span className="num shrink-0" style={{ fontSize: 12.5, fontWeight: 600, color: C.body }}>{n(perna.odd).toFixed(2)}</span>
-                  )}
-                </div>
+                ))}
               </div>
             ))}
           </div>

@@ -1,8 +1,8 @@
 "use client";
 import React, { useState } from "react";
-import { Plus, Trash2, Layers } from "lucide-react";
+import { Plus, Trash2, Layers, X } from "lucide-react";
 import { C, Modal, Input, Select, SelectCasa, Label, Btn, ST, Codigo, Avatar } from "@/lib/ui";
-import { uid, hoje, n, brl, sgn, nomeDoEvento, tituloAposta, pernaVazia, oddTotal, eventoDasPernas } from "@/lib/calc";
+import { uid, hoje, n, brl, sgn, nomeDoEvento, tituloAposta, oddTotal, eventoDasPernas, agruparPorEvento, achatarEventos, selecaoVazia, eventoVazio } from "@/lib/calc";
 
 /* ═══════════════════════════════════════════════════════
    Preenchimento automático, em cascata:
@@ -59,28 +59,54 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
 
   // ── pernas ──
   const pernas = f.pernas || [];
-  const multipla = pernas.length > 1;
+  const eventos = agruparPorEvento(pernas);
   const oddProduto = oddTotal(pernas);
-  // A odd que vale: a que você digitou, ou o produto das pernas.
+  // A odd que vale: a que você digitou, ou o produto das seleções.
   const oddDoBilhete = n(f.odd) > 1 ? n(f.odd) : oddProduto;
 
-  // Enquanto você não editar a odd total na mão, ela acompanha o produto.
-  // Essa flag é mais confiável que comparar números com ponto flutuante.
-  const setPerna = (i, k, v) => setF((p) => {
-    const arr = p.pernas.map((perna, idx) => (idx === i ? { ...perna, [k]: v } : perna));
-    const prod = oddTotal(arr);
-    return { ...p, pernas: arr, odd: p.oddManual ? p.odd : (prod > 0 ? String(prod.toFixed(2)) : "") };
+  // Total de seleções em todos os eventos (para saber se é múltipla).
+  const totalSelecoes = eventos.reduce((s, ev) => s + ev.selecoes.length, 0);
+  const multipla = totalSelecoes > 1;
+
+  // Grava a nova lista de eventos: achata em pernas e atualiza a odd.
+  const aplicarEventos = (novosEventos) => setF((p) => {
+    const novasPernas = achatarEventos(novosEventos);
+    const prod = oddTotal(novasPernas);
+    return { ...p, pernas: novasPernas, odd: p.oddManual ? p.odd : (prod > 0 ? String(prod.toFixed(2)) : "") };
   });
-  const addPerna = () => setF((p) => {
-    const arr = [...p.pernas, pernaVazia()];
-    return { ...p, pernas: arr };
-  });
-  const removerPerna = (i) => setF((p) => {
-    const arr = p.pernas.filter((_, idx) => idx !== i);
-    const nova = arr.length ? arr : [pernaVazia()];
-    const prod = oddTotal(nova);
-    return { ...p, pernas: nova, odd: p.oddManual ? p.odd : (prod > 0 ? String(prod.toFixed(2)) : "") };
-  });
+
+  // ── ações sobre eventos ──
+  const setConfronto = (ie, valor) => {
+    const novos = eventos.map((ev, i) => (i === ie ? { ...ev, confronto: valor } : ev));
+    aplicarEventos(novos);
+  };
+  const addEvento = () => aplicarEventos([...eventos, eventoVazio()]);
+  const removerEvento = (ie) => {
+    const novos = eventos.filter((_, i) => i !== ie);
+    aplicarEventos(novos.length ? novos : [eventoVazio()]);
+  };
+
+  // ── ações sobre seleções dentro de um evento ──
+  const setSelecao = (ie, is, campo, valor) => {
+    const novos = eventos.map((ev, i) => {
+      if (i !== ie) return ev;
+      const selecoes = ev.selecoes.map((s, j) => (j === is ? { ...s, [campo]: valor } : s));
+      return { ...ev, selecoes };
+    });
+    aplicarEventos(novos);
+  };
+  const addSelecao = (ie) => {
+    const novos = eventos.map((ev, i) => (i === ie ? { ...ev, selecoes: [...ev.selecoes, selecaoVazia()] } : ev));
+    aplicarEventos(novos);
+  };
+  const removerSelecao = (ie, is) => {
+    const novos = eventos.map((ev, i) => {
+      if (i !== ie) return ev;
+      const selecoes = ev.selecoes.filter((_, j) => j !== is);
+      return { ...ev, selecoes: selecoes.length ? selecoes : [selecaoVazia()] };
+    });
+    aplicarEventos(novos);
+  };
 
   // Quando você digita na odd total, marca como manual: para de seguir o produto.
   const setOddManual = (v) => setF((p) => ({ ...p, odd: v, oddManual: true }));
@@ -111,12 +137,12 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
         <div>
           <div className="flex items-center justify-between mb-2">
             <span style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: C.muted }}>
-              {multipla ? "Bilhete múltiplo" : "Seleção"}
+              {eventos.length > 1 ? "Bilhete com vários jogos" : "Jogo"}
             </span>
             <div className="flex items-center gap-2">
               {multipla && (
                 <span className="inline-flex items-center gap-1" style={{ fontSize: 11.5, color: C.blue, fontWeight: 600 }}>
-                  <Layers size={12} /> {pernas.length} seleções
+                  <Layers size={12} /> {totalSelecoes} seleções
                 </span>
               )}
               {f.codigo && <Codigo valor={f.codigo} size={11} />}
@@ -124,38 +150,59 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
           </div>
 
           <div className="space-y-3">
-            {pernas.map((perna, i) => (
-              <div key={i} className="rounded-xl p-3"
-                style={{ background: multipla ? "#FBFCFD" : C.card, border: `1px solid ${multipla ? C.blueBand : C.line}` }}>
-                {multipla && (
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="inline-flex items-center justify-center rounded-md" style={{ width: 20, height: 20, fontSize: 11, fontWeight: 700, background: C.blueSoft, color: C.blue }}>
-                      {i + 1}
+            {eventos.map((ev, ie) => (
+              <div key={ie} className="rounded-xl p-3"
+                style={{ background: "#FBFCFD", border: `1px solid ${eventos.length > 1 ? C.blueBand : C.line}` }}>
+                {/* topo do evento: os times, uma vez só */}
+                <div className="flex items-center gap-2">
+                  {eventos.length > 1 && (
+                    <span className="inline-flex items-center justify-center rounded-md shrink-0" style={{ width: 20, height: 20, fontSize: 11, fontWeight: 700, background: C.blueSoft, color: C.blue }}>
+                      {ie + 1}
                     </span>
-                    <button type="button" onClick={() => removerPerna(i)} className="p-1 rounded-md" style={{ color: C.faint }} title="Remover seleção">
-                      <Trash2 size={14} />
-                    </button>
+                  )}
+                  <div className="flex-1">
+                    <Input value={ev.confronto} onChange={(e) => setConfronto(ie, e.target.value)} placeholder="Jogo: França x Espanha" />
                   </div>
-                )}
-
-                <Input
-                  value={perna.confronto}
-                  onChange={(e) => setPerna(i, "confronto", e.target.value)}
-                  placeholder="Times: Inglaterra x Argentina"
-                />
-
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  <Input value={perna.mercado} onChange={(e) => setPerna(i, "mercado", e.target.value)} placeholder="Mercado" />
-                  <Input type="text" inputMode="decimal" value={perna.odd} onChange={(e) => setPerna(i, "odd", e.target.value)} placeholder="Odd 1.85" />
+                  {eventos.length > 1 && (
+                    <button type="button" onClick={() => removerEvento(ie)} className="p-1 rounded-md shrink-0" style={{ color: C.faint }} title="Remover jogo">
+                      <Trash2 size={15} />
+                    </button>
+                  )}
                 </div>
+
+                {/* seleções dentro do evento: jogador + tipo + odd */}
+                <div className="mt-2 space-y-2">
+                  {ev.selecoes.map((s, is) => (
+                    <div key={is} className="rounded-lg p-2" style={{ background: C.card, border: `1px solid ${C.lineSoft}` }}>
+                      <div className="flex items-center gap-2">
+                        <Input value={s.selecao} onChange={(e) => setSelecao(ie, is, "selecao", e.target.value)} placeholder="Jogador ou seleção" />
+                        {ev.selecoes.length > 1 && (
+                          <button type="button" onClick={() => removerSelecao(ie, is)} className="p-1 rounded-md shrink-0" style={{ color: C.faint }} title="Remover seleção">
+                            <X size={14} />
+                          </button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 mt-1.5">
+                        <Input value={s.mercado} onChange={(e) => setSelecao(ie, is, "mercado", e.target.value)} placeholder="Tipo da aposta" />
+                        <Input type="text" inputMode="decimal" value={s.odd} onChange={(e) => setSelecao(ie, is, "odd", e.target.value)} placeholder="Odd 1.85" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <button type="button" onClick={() => addSelecao(ie)}
+                  className="w-full mt-2 flex items-center justify-center gap-1 rounded-lg py-2"
+                  style={{ border: `1px dashed ${C.line}`, fontSize: 12.5, fontWeight: 600, color: C.blue }}>
+                  <Plus size={14} /> Adicionar seleção neste jogo
+                </button>
               </div>
             ))}
           </div>
 
-          <button type="button" onClick={addPerna}
+          <button type="button" onClick={addEvento}
             className="w-full mt-3 flex items-center justify-center gap-1.5 rounded-xl py-2.5"
-            style={{ border: `1.5px dashed ${C.line}`, fontSize: 13, fontWeight: 600, color: C.blue, background: C.card }}>
-            <Plus size={15} /> Adicionar seleção (múltipla)
+            style={{ border: `1.5px dashed ${C.blueBand}`, fontSize: 13, fontWeight: 600, color: C.blue, background: C.blueSoft }}>
+            <Plus size={15} /> Adicionar outro jogo
           </button>
 
           <div className="mt-3 rounded-xl p-3" style={{ background: "#FBFCFD", border: `1px solid ${C.line}` }}>
