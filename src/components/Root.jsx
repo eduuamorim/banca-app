@@ -81,7 +81,19 @@ export default function Root() {
       const mapa = {};
       lc.data.forEach((r) => { mapa[r.usuario_id] = r.lido_ate; });
       setLeituras(mapa);
-      if (mapa[meId]) setLidoAte(mapa[meId]);
+      if (mapa[meId]) {
+        setLidoAte(mapa[meId]);
+      } else {
+        // Você ainda não tem marca de leitura (primeira vez).
+        // Assume que já viu as mensagens que já existiam: marca a leitura
+        // com a data da última mensagem. Só o que chegar depois notifica.
+        const ultimasMsgs = (ms.data || []).map(msgFromRow);
+        const ultima = ultimasMsgs.length ? ultimasMsgs[ultimasMsgs.length - 1].criadoEm : new Date().toISOString();
+        setLidoAte(ultima);
+        try {
+          await supabase.from("leitura_chat").upsert({ usuario_id: meId, lido_ate: ultima }, { onConflict: "usuario_id" });
+        } catch (e) { /* silencioso */ }
+      }
     }
     setCarregado(true);
   }, []);
@@ -209,18 +221,33 @@ export default function Root() {
     setLidoAte(agora);
     setNaoLidas(0);
     if (!meId) return;
-    await supabase.from("leitura_chat").upsert({ usuario_id: meId, lido_ate: agora }, { onConflict: "usuario_id" });
+    // Se a tabela de leitura ainda não existe (schema não rodado), não trava o app.
+    try {
+      await supabase.from("leitura_chat").upsert({ usuario_id: meId, lido_ate: agora }, { onConflict: "usuario_id" });
+    } catch (e) {
+      // silencioso: a marca de leitura é um extra, não pode quebrar a conversa
+    }
   };
 
   const enviarMensagem = async (m) => {
+    const texto = (m.texto || "").trim();
+    if (!texto && !m.apostaId) return;
     // Otimista: aparece na hora. O realtime sincroniza com o outro.
-    const provisorio = { id: "tmp-" + Date.now(), autorId: meId, texto: (m.texto || "").trim(), apostaId: m.apostaId || "", criadoEm: new Date().toISOString() };
+    const provisorio = { id: "tmp-" + Date.now(), autorId: meId, texto, apostaId: m.apostaId || "", criadoEm: new Date().toISOString() };
     setMsgs((arr) => [...arr, provisorio]);
     const { error } = await supabase.from("mensagens").insert(msgToInsert(m, meId));
     if (error) {
       // desfaz o provisório se falhou
       setMsgs((arr) => arr.filter((x) => x.id !== provisorio.id));
-      flash("Não consegui enviar a mensagem.");
+      // mostra a causa real para dar para resolver
+      const causa = (error.message || "").toLowerCase();
+      if (causa.includes("row-level security") || causa.includes("policy")) {
+        flash("Envio bloqueado pela segurança. Confirme que você está logado.");
+      } else if (causa.includes("value too long") || causa.includes("too long")) {
+        flash("Mensagem muito longa. Tente encurtar.");
+      } else {
+        flash("Não consegui enviar: " + (error.message || "erro desconhecido"));
+      }
     }
   };
 
