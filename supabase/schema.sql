@@ -606,7 +606,7 @@ do $$
 declare
   t text;
 begin
-  foreach t in array array['apostas', 'movimentos', 'contas', 'fixadas', 'mensagens', 'leitura_chat'] loop
+  foreach t in array array['apostas', 'movimentos', 'contas', 'fixadas', 'mensagens'] loop
     if not exists (
       select 1 from pg_publication_tables
       where pubname = 'supabase_realtime'

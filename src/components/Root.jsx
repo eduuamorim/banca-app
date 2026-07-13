@@ -84,15 +84,12 @@ export default function Root() {
       if (mapa[meId]) {
         setLidoAte(mapa[meId]);
       } else {
-        // Você ainda não tem marca de leitura (primeira vez).
-        // Assume que já viu as mensagens que já existiam: marca a leitura
-        // com a data da última mensagem. Só o que chegar depois notifica.
+        // Primeira vez sem marca: assume que já viu o que existia.
+        // NÃO grava no banco aqui (isso causaria recarga em loop);
+        // só define na memória. A gravação real acontece ao abrir o chat.
         const ultimasMsgs = (ms.data || []).map(msgFromRow);
         const ultima = ultimasMsgs.length ? ultimasMsgs[ultimasMsgs.length - 1].criadoEm : new Date().toISOString();
         setLidoAte(ultima);
-        try {
-          await supabase.from("leitura_chat").upsert({ usuario_id: meId, lido_ate: ultima }, { onConflict: "usuario_id" });
-        } catch (e) { /* silencioso */ }
       }
     }
     setCarregado(true);
@@ -108,7 +105,6 @@ export default function Root() {
       .on("postgres_changes", { event: "*", schema: "public", table: "contas" }, carregar)
       .on("postgres_changes", { event: "*", schema: "public", table: "fixadas" }, carregar)
       .on("postgres_changes", { event: "*", schema: "public", table: "mensagens" }, carregar)
-      .on("postgres_changes", { event: "*", schema: "public", table: "leitura_chat" }, carregar)
       .subscribe();
     return () => supabase.removeChannel(canal);
   }, [sessao, carregar]);
@@ -146,11 +142,11 @@ export default function Root() {
     tocarDing();                                // só o som; a contagem é recalculada abaixo
   }, [msgs, meId]);
 
-  // Conta as não lidas comparando com a marca de leitura (persistente).
+  // Conta as não lidas comparando com a marca de leitura.
   // Só o que o OUTRO enviou DEPOIS da sua última leitura conta.
   useEffect(() => {
     if (!meId) return;
-    if (chatAberto) { marcarLido(); return; }
+    if (chatAberto) { setNaoLidas(0); return; }
     const marca = lidoAte ? new Date(lidoAte).getTime() : 0;
     const qtd = msgs.filter((m) =>
       m.autorId && m.autorId !== meId &&
@@ -159,6 +155,12 @@ export default function Root() {
     ).length;
     setNaoLidas(qtd);
   }, [msgs, meId, lidoAte, chatAberto]);
+
+  // Ao ABRIR o chat (transição para aberto), grava a leitura uma vez.
+  useEffect(() => {
+    if (chatAberto && meId) marcarLido();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatAberto]);
 
   const salvarCfg = async (novo) => {
     setCfg(novo);
