@@ -34,6 +34,7 @@ export default function Root() {
   const tabRef = useRef("painel");    // aba atual, para o efeito enxergar sem recriar
   const [chatAberto, setChatAberto] = useState(false);
   const [lidoAte, setLidoAte] = useState(null);
+  const marcaInicialFeita = useRef(false);
   const [leituras, setLeituras] = useState({});   // usuarioId -> lido_ate (para o "visto")
   const chatAbertoRef = useRef(false);
 
@@ -83,10 +84,11 @@ export default function Root() {
       setLeituras(mapa);
       if (mapa[meId]) {
         setLidoAte(mapa[meId]);
-      } else {
-        // Primeira vez sem marca: assume que já viu o que existia.
-        // NÃO grava no banco aqui (isso causaria recarga em loop);
-        // só define na memória. A gravação real acontece ao abrir o chat.
+      } else if (!marcaInicialFeita.current) {
+        // Primeira carga sem marca: assume que já viu o que existia.
+        // Só na PRIMEIRA vez. Nas recargas seguintes (ex: quando chega
+        // mensagem nova), NÃO mexemos, senão a mensagem nova nasceria "lida".
+        marcaInicialFeita.current = true;
         const ultimasMsgs = (ms.data || []).map(msgFromRow);
         const ultima = ultimasMsgs.length ? ultimasMsgs[ultimasMsgs.length - 1].criadoEm : new Date().toISOString();
         setLidoAte(ultima);
