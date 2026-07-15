@@ -74,10 +74,23 @@ export default function Chat(p) {
   const [anexo, setAnexo] = useState(null);       // aposta escolhida para anexar
   const [seletor, setSeletor] = useState(false);
   const fim = useRef(null);
+  const rolagem = useRef(null);          // o container que rola
+  const jaPosicionou = useRef(false);
 
-  // Rola para a última mensagem sempre que chega uma nova.
+  // Ao abrir, já aparece embaixo, sem passeio de scroll.
+  // Mexer no container direto é mais confiável que scrollIntoView,
+  // porque não depende de a lista já ter terminado de desenhar.
+  // Depois da primeira vez, mensagem nova desce suave.
+  // O scroll continua livre: você sobe quando quiser ler o histórico.
   useEffect(() => {
-    fim.current?.scrollIntoView({ behavior: "smooth" });
+    const caixa = rolagem.current;
+    if (!caixa) return;
+    if (!jaPosicionou.current) {
+      jaPosicionou.current = true;
+      caixa.scrollTop = caixa.scrollHeight;          // instantâneo, sem animação
+    } else {
+      fim.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
   }, [msgs.length]);
 
   const enviar = () => {
@@ -117,7 +130,7 @@ export default function Chat(p) {
       )}
 
       {/* mensagens */}
-      <div className="flex-1 overflow-y-auto py-4 space-y-4">
+      <div ref={rolagem} className="flex-1 overflow-y-auto py-4 space-y-4">
         {msgs.length === 0 ? (
           <Empty icon={MessageCircle} title="Nenhuma mensagem ainda" hint="Escreva abaixo para começar a conversa." />
         ) : (

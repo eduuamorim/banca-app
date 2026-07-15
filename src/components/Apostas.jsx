@@ -1,6 +1,6 @@
 "use client";
-import React, { useState, useMemo } from "react";
-import { Plus, Receipt, Search, SlidersHorizontal, X, ChevronDown } from "lucide-react";
+import React, { useState, useMemo, useEffect } from "react";
+import { Plus, Receipt, Search, SlidersHorizontal, X, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { C, Card, Input, Select, Btn, Empty, Money, Stat, ST } from "@/lib/ui";
 import { n, brl, sgn, dBR, hoje, lucro, fechada } from "@/lib/calc";
 import BetRow from "./BetRow";
@@ -28,6 +28,8 @@ const VAZIO = {
 export default function Apostas(p) {
   const { bets, casas, users, setModalAposta, mudarStatus, excluirAposta, fixadas, alternarFixada } = p;
   const [f, setF] = useState(VAZIO);
+  const [aba, setAba] = useState("abertas");
+  const [pagina, setPagina] = useState(1);
   const [avancado, setAvancado] = useState(false);
 
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
@@ -82,11 +84,24 @@ export default function Apostas(p) {
   const seGanharTudo = listaAbertas.reduce((s, b) => s + n(b.valor) * (n(b.odd) - 1), 0);
   const sePerderTudo = -listaAbertas.reduce((s, b) => s + n(b.valor), 0);
 
+  // ── abas: em aberto / resolvidas, sobre TODAS as apostas filtradas ──
+  const listaResolvidas = lista.filter(fechada);
+  const daAba = aba === "abertas" ? listaAbertas : listaResolvidas;
+
+  // ── paginação: 30 por página ──
+  const POR_PAGINA = 30;
+  const totalPaginas = Math.max(1, Math.ceil(daAba.length / POR_PAGINA));
+  const paginaSegura = Math.min(pagina, totalPaginas);
+  const daPagina = daAba.slice((paginaSegura - 1) * POR_PAGINA, paginaSegura * POR_PAGINA);
+
+  // Mudou filtro ou busca: volta para a primeira página.
+  useEffect(() => { setPagina(1); }, [f]);
+
   const grupos = useMemo(() => {
     const m = {};
-    lista.forEach((b) => (m[b.data] ||= []).push(b));
+    daPagina.forEach((b) => (m[b.data] ||= []).push(b));
     return Object.entries(m).sort((a, b) => b[0].localeCompare(a[0]));
-  }, [lista]);
+  }, [daPagina]);
 
   return (
     <div className="space-y-5">
@@ -235,13 +250,35 @@ export default function Apostas(p) {
         )}
       </Card>
 
+      {/* ══ abas: em aberto / resolvidas (todas as apostas) ══ */}
+      <div className="flex gap-1 p-1 rounded-xl" style={{ background: C.lineSoft, width: "fit-content" }}>
+        {[["abertas", "Em aberto", listaAbertas.length],
+          ["resolvidas", "Resolvidas", listaResolvidas.length]].map(([id, rot, qtd]) => {
+          const on = aba === id;
+          return (
+            <button key={id} onClick={() => { setAba(id); setPagina(1); }}
+              className="px-4 py-2 rounded-lg" style={{
+                fontSize: 13, fontWeight: on ? 600 : 500,
+                background: on ? C.card : "transparent",
+                color: on ? C.ink : C.muted,
+                boxShadow: on ? "0 1px 3px rgba(24,38,43,.08)" : "none",
+                transition: "all .13s ease",
+              }}>
+              {rot}{qtd > 0 && ` (${qtd})`}
+            </button>
+          );
+        })}
+      </div>
+
       {/* ══ lista ══ */}
-      {lista.length === 0 ? (
+      {daAba.length === 0 ? (
         <Card pad={false}>
           <Empty
             icon={Receipt}
-            title={bets.length ? "Nada com esses filtros" : "Nenhuma aposta ainda"}
-            hint={bets.length ? "Afrouxe a busca ou limpe os filtros." : "Registre a primeira aposta."}
+            title={bets.length
+              ? (aba === "abertas" ? "Nenhuma aposta em aberto" : "Nenhuma aposta resolvida")
+              : "Nenhuma aposta ainda"}
+            hint={bets.length ? "Troque de aba ou ajuste os filtros." : "Registre a primeira aposta."}
             action={bets.length
               ? <Btn kind="outline" onClick={() => setF(VAZIO)}>Limpar filtros</Btn>
               : <Btn kind="green" onClick={() => setModalAposta(true)}><Plus size={16} /> Nova aposta</Btn>}
@@ -271,6 +308,26 @@ export default function Apostas(p) {
             </div>
           );
         })
+      )}
+
+      {/* ══ paginação ══ */}
+      {totalPaginas > 1 && (
+        <div className="flex items-center justify-between gap-3 pt-1">
+          <Btn kind="outline" size="sm" disabled={paginaSegura <= 1}
+            onClick={() => setPagina((x) => Math.max(1, x - 1))}>
+            <ChevronLeft size={15} /> Anterior
+          </Btn>
+
+          <span className="num" style={{ fontSize: 12.5, color: C.muted }}>
+            página {paginaSegura} de {totalPaginas}
+            <span style={{ color: C.faint }}> · {daAba.length} apostas</span>
+          </span>
+
+          <Btn kind="outline" size="sm" disabled={paginaSegura >= totalPaginas}
+            onClick={() => setPagina((x) => Math.min(totalPaginas, x + 1))}>
+            Próxima <ChevronRight size={15} />
+          </Btn>
+        </div>
       )}
     </div>
   );
