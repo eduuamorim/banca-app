@@ -7,6 +7,12 @@ import { n, brl, sgn, lucro, fechada } from "@/lib/calc";
 export default function Relatorio({ bets, users, casas, cfg, meta, stop, lucroTotal }) {
   const res = bets.filter(fechada);
 
+  // Apostas ainda em aberto: a previsão dos dois cenários.
+  const abertasRel = bets.filter((b) => !fechada(b));
+  const investidoAberto = abertasRel.reduce((s, b) => s + n(b.valor), 0);
+  const seGanharTudo = abertasRel.reduce((s, b) => s + n(b.valor) * (n(b.odd) - 1), 0);
+  const sePerderTudo = -investidoAberto;
+
   const calc = (arr) => {
     const inv = arr.reduce((s, b) => s + n(b.valor), 0);
     const luc = arr.reduce((s, b) => s + lucro(b), 0);
@@ -38,6 +44,34 @@ export default function Relatorio({ bets, users, casas, cfg, meta, stop, lucroTo
         <Big k="Taxa de acerto" v={`${geral.acerto.toFixed(1)}%`} sub={`${geral.g}G · ${geral.r}R`} />
         <Big k="Dias operados" v={dias.length} sub={`${dias.filter((d) => d.luc >= meta).length} com meta batida`} />
       </div>
+
+      {/* previsão das apostas ainda em aberto */}
+      {abertasRel.length > 0 && (
+        <Card>
+          <div className="flex items-baseline justify-between mb-3">
+            <h2 style={{ fontSize: 15, fontWeight: 600 }}>Em aberto agora</h2>
+            <span className="num" style={{ fontSize: 12.5, color: C.muted }}>
+              {abertasRel.length} aposta{abertasRel.length > 1 ? "s" : ""} · {brl(investidoAberto)} em jogo
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-xl p-3" style={{ background: C.greenSoft, border: `1px solid ${C.greenBand}` }}>
+              <p style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: ".03em", textTransform: "uppercase", color: C.greenDeep }}>Se todas ganharem</p>
+              <p className="num" style={{ fontSize: 20, fontWeight: 700, color: C.greenDeep, marginTop: 2 }}>{sgn(seGanharTudo)}</p>
+              <p style={{ fontSize: 11.5, color: C.greenDeep, opacity: .75 }}>
+                total iria para {sgn(geral.luc + seGanharTudo)}
+              </p>
+            </div>
+            <div className="rounded-xl p-3" style={{ background: C.redSoft, border: `1px solid ${C.redBand}` }}>
+              <p style={{ fontSize: 11.5, fontWeight: 600, letterSpacing: ".03em", textTransform: "uppercase", color: C.red }}>Se todas perderem</p>
+              <p className="num" style={{ fontSize: 20, fontWeight: 700, color: C.red, marginTop: 2 }}>{sgn(sePerderTudo)}</p>
+              <p style={{ fontSize: 11.5, color: C.red, opacity: .75 }}>
+                total iria para {sgn(geral.luc + sePerderTudo)}
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* quem apostou o quê */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

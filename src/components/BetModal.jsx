@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Plus, Trash2, Layers, X } from "lucide-react";
 import { C, Modal, Input, Select, SelectCasa, Label, Btn, ST, Codigo, Avatar } from "@/lib/ui";
 import { uid, hoje, n, brl, sgn, nomeDoEvento, tituloAposta, oddTotal, eventoDasPernas, agruparPorEvento, achatarEventos, selecaoVazia, eventoVazio } from "@/lib/calc";
@@ -24,20 +24,26 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
       ? bet.pernas
       : [{ confronto: bet.evento || "", mercado: "", selecao: "", odd: bet.odd || "", dataJogo: "" }],
   } : {
+    // Aposta nova. Se veio uma cópia (duplicar), aproveita os dados dela;
+    // senão, começa em branco com a stake padrão.
     id: uid(),
     codigo: "",
-    nome: "",
+    nome: bet?.nome || "",
     data: dia || hoje(),
     usuarioId: me.id,
-    casaId: "",
-    evento: "",
-    stakePct: bet?.preStake ?? cfg.stakes[0]?.pct ?? 1,
-    valor: (cfg.banca * (bet?.preStake ?? cfg.stakes[0]?.pct ?? 1)) / 100,
-    odd: "",
+    casaId: bet?.casaId || "",
+    evento: bet?.evento || "",
+    stakePct: bet?.stakePct ?? bet?.preStake ?? cfg.stakes[0]?.pct ?? 1,
+    valor: bet?.valor ?? (cfg.banca * (bet?.preStake ?? cfg.stakes[0]?.pct ?? 1)) / 100,
+    odd: bet?.odd ?? "",
+    oddManual: bet?.oddManual ?? false,
     status: "aberta",
     cashoutValor: "",
-    obs: "",
-    pernas: [{ confronto: "", selecao: "", mercado: "", odd: "", dataJogo: "" }],
+    obs: bet?.obs || "",
+    tipo: bet?.tipo || "simples",
+    pernas: Array.isArray(bet?.pernas) && bet.pernas.length
+      ? bet.pernas.map((x) => ({ ...x }))
+      : [{ confronto: "", selecao: "", mercado: "", odd: "", dataJogo: "" }],
   };
 
   const [f, setF] = useState(inicial);
@@ -58,55 +64,56 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
   });
 
   // ── pernas ──
-  const pernas = f.pernas || [];
-  const eventos = agruparPorEvento(pernas);
-  const oddProduto = oddTotal(pernas);
-  // A odd que vale: a que você digitou, ou o produto das seleções.
+  // Os eventos são estado próprio. Antes eles eram recalculados a cada
+  // tecla (agrupar + achatar), o que recriava os campos e fazia o cursor
+  // se perder: espaço e ponto simplesmente sumiam. Agora editamos os
+  // eventos direto e só achatamos em pernas na hora de salvar.
+  const [eventos, setEventos] = useState(() => agruparPorEvento(inicial.pernas || []));
+
+  const pernasAtuais = achatarEventos(eventos);
+  const oddProduto = oddTotal(pernasAtuais);
   const oddDoBilhete = n(f.odd) > 1 ? n(f.odd) : oddProduto;
 
-  // Total de seleções em todos os eventos (para saber se é múltipla).
   const totalSelecoes = eventos.reduce((s, ev) => s + ev.selecoes.length, 0);
   const multipla = totalSelecoes > 1;
 
-  // Grava a nova lista de eventos: achata em pernas e atualiza a odd.
-  const aplicarEventos = (novosEventos) => setF((p) => {
-    const novasPernas = achatarEventos(novosEventos);
-    const prod = oddTotal(novasPernas);
-    return { ...p, pernas: novasPernas, odd: p.oddManual ? p.odd : (prod > 0 ? String(prod.toFixed(2)) : "") };
-  });
+  // Quando as seleções mudam, a odd total acompanha o produto,
+  // a menos que você a tenha digitado na mão.
+  useEffect(() => {
+    if (f.oddManual) return;
+    const prod = oddTotal(achatarEventos(eventos));
+    setF((p) => ({ ...p, odd: prod > 0 ? String(prod.toFixed(2)) : "" }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventos]);
 
   // ── ações sobre eventos ──
-  const setConfronto = (ie, valor) => {
-    const novos = eventos.map((ev, i) => (i === ie ? { ...ev, confronto: valor } : ev));
-    aplicarEventos(novos);
-  };
-  const addEvento = () => aplicarEventos([...eventos, eventoVazio()]);
-  const removerEvento = (ie) => {
-    const novos = eventos.filter((_, i) => i !== ie);
-    aplicarEventos(novos.length ? novos : [eventoVazio()]);
-  };
+  const setConfronto = (ie, valor) =>
+    setEventos((evs) => evs.map((ev, i) => (i === ie ? { ...ev, confronto: valor } : ev)));
+
+  const addEvento = () => setEventos((evs) => [...evs, eventoVazio()]);
+
+  const removerEvento = (ie) =>
+    setEventos((evs) => {
+      const novos = evs.filter((_, i) => i !== ie);
+      return novos.length ? novos : [eventoVazio()];
+    });
 
   // ── ações sobre seleções dentro de um evento ──
-  const setSelecao = (ie, is, campo, valor) => {
-    const novos = eventos.map((ev, i) => {
+  const setSelecao = (ie, is, campo, valor) =>
+    setEventos((evs) => evs.map((ev, i) => {
       if (i !== ie) return ev;
-      const selecoes = ev.selecoes.map((s, j) => (j === is ? { ...s, [campo]: valor } : s));
-      return { ...ev, selecoes };
-    });
-    aplicarEventos(novos);
-  };
-  const addSelecao = (ie) => {
-    const novos = eventos.map((ev, i) => (i === ie ? { ...ev, selecoes: [...ev.selecoes, selecaoVazia()] } : ev));
-    aplicarEventos(novos);
-  };
-  const removerSelecao = (ie, is) => {
-    const novos = eventos.map((ev, i) => {
+      return { ...ev, selecoes: ev.selecoes.map((s, j) => (j === is ? { ...s, [campo]: valor } : s)) };
+    }));
+
+  const addSelecao = (ie) =>
+    setEventos((evs) => evs.map((ev, i) => (i === ie ? { ...ev, selecoes: [...ev.selecoes, selecaoVazia()] } : ev)));
+
+  const removerSelecao = (ie, is) =>
+    setEventos((evs) => evs.map((ev, i) => {
       if (i !== ie) return ev;
       const selecoes = ev.selecoes.filter((_, j) => j !== is);
       return { ...ev, selecoes: selecoes.length ? selecoes : [selecaoVazia()] };
-    });
-    aplicarEventos(novos);
-  };
+    }));
 
   // Quando você digita na odd total, marca como manual: para de seguir o produto.
   const setOddManual = (v) => setF((p) => ({ ...p, odd: v, oddManual: true }));
@@ -122,6 +129,31 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
   const ganho = n(f.valor) * (oddDoBilhete - 1);
   const dono = users.find((u) => u.id === f.usuarioId);
 
+  // Salvar em um lugar só: usado pelo botão e pela tecla Enter.
+  const salvar = () => {
+    if (!ok) return;
+    const evento = eventoDasPernas({ ...f, pernas: pernasAtuais }, pernasAtuais);
+    salvarAposta({
+      ...f,
+      pernas: pernasAtuais,
+      evento,
+      nome: nomeDoEvento(evento),
+      valor: n(f.valor),
+      odd: oddDoBilhete,
+      stakePct: n(f.stakePct),
+    });
+    onClose();
+  };
+
+  // Enter confirma. Shift+Enter e campos de texto longo seguem normais.
+  const aoTeclar = (e) => {
+    if (e.key !== "Enter" || e.shiftKey) return;
+    const alvo = e.target;
+    if (alvo && alvo.tagName === "TEXTAREA") return;   // observação pode ter linhas
+    e.preventDefault();
+    salvar();
+  };
+
   return (
     <Modal onClose={onClose} wide
       title={editando ? "Editar aposta" : "Nova aposta"}
@@ -132,7 +164,7 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
           <b style={{ fontWeight: 600, color: C.body }}>{(editando ? dono : me)?.nome || "\u2014"}</b>
         </span>
       }>
-      <div className="space-y-5">
+      <div className="space-y-5" onKeyDown={aoTeclar}>
 
         <div>
           <div className="flex items-center justify-between mb-2">
@@ -212,7 +244,7 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
                 <p style={{ fontSize: 11.5, color: C.faint, marginTop: -2 }}>
                   {multipla
                     ? <>a que a casa mostra. Cálculo: {oddProduto.toFixed(2)}
-                        {pernas.filter((p) => n(p.odd) > 0).length > 1 && <> ({pernas.filter((p) => n(p.odd) > 0).map((p) => n(p.odd).toFixed(2)).join(" × ")})</>}</>
+                        {pernasAtuais.filter((p) => n(p.odd) > 0).length > 1 && <> ({pernasAtuais.filter((p) => n(p.odd) > 0).map((p) => n(p.odd).toFixed(2)).join(" × ")})</>}</>
                     : "a cotação da sua aposta"}
                 </p>
               </div>
@@ -230,7 +262,7 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
 
           <p className="mt-2" style={{ fontSize: 12, color: C.faint }}>
             Aparece na lista como{" "}
-            <b style={{ color: C.body }}>{tituloAposta({ nome: nomeDoEvento(eventoDasPernas(f, pernas)), evento: eventoDasPernas(f, pernas) })}</b>
+            <b style={{ color: C.body }}>{tituloAposta({ nome: nomeDoEvento(eventoDasPernas({ ...f, pernas: pernasAtuais }, pernasAtuais)), evento: eventoDasPernas({ ...f, pernas: pernasAtuais }, pernasAtuais) })}</b>
             {f.codigo && <>, com o código <b style={{ color: C.body }}>#{f.codigo}</b> ao lado</>}
           </p>
         </div>
@@ -323,18 +355,7 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
 
         <div className="flex justify-end gap-2 pt-1">
           <Btn kind="outline" onClick={onClose}>Cancelar</Btn>
-          <Btn kind="green" disabled={!ok} onClick={() => {
-            const evento = eventoDasPernas(f, pernas);
-            salvarAposta({
-              ...f,
-              evento,
-              nome: nomeDoEvento(evento),
-              valor: n(f.valor),
-              odd: oddDoBilhete,
-              stakePct: n(f.stakePct),
-            });
-            onClose();
-          }}>
+          <Btn kind="green" disabled={!ok} onClick={salvar}>
             {editando ? "Salvar" : "Registrar aposta"}
           </Btn>
         </div>

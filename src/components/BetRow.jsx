@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from "react";
-import { Pin, ChevronDown, Pencil, Trash2, Check, X, MoreHorizontal, ExternalLink } from "lucide-react";
+import { Pin, ChevronDown, Pencil, Copy, Trash2, Check, X, MoreHorizontal, ExternalLink } from "lucide-react";
 import { C, Pill, SeloResultado, Btn, Money, Codigo, IconeCasa, Confirmar, Input, Label, Avatar } from "@/lib/ui";
 import { n, brl, lucro, fechada, tituloAposta, dataHoraBR, pernasNormalizadas, agruparPorEvento } from "@/lib/calc";
 
@@ -37,6 +37,28 @@ export default function BetRow({ b, casas, users, first, fixada, alternarFixada,
     ? `Múltipla · ${primeiroConfronto}${pernasBilhete.length > 1 ? ` +${pernasBilhete.length - 1}` : ""}`
     : primeiroConfronto;
   const ganhoPotencial = n(b.valor) * n(b.odd);
+
+  // Duplicar: abre o modal com uma cópia desta aposta, pronta para editar.
+  // A cópia nasce sem identidade (sem id nem código: o banco gera outro)
+  // e sempre em aberto, porque é uma aposta nova.
+  const duplicar = () => {
+    setModalAposta({
+      // sem id: o modal trata como aposta nova
+      codigo: "",
+      nome: b.nome || "",
+      evento: b.evento || "",
+      casaId: b.casaId || "",
+      valor: b.valor,
+      odd: b.odd,
+      stakePct: b.stakePct,
+      obs: b.obs || "",
+      tipo: b.tipo || "simples",
+      pernas: (pernasBilhete || []).map((x) => ({ ...x })),
+      status: "aberta",
+      cashoutValor: "",
+      oddManual: true,   // mantém a odd copiada como está
+    });
+  };
 
   const pedir = (chave) => {
     if (chave === "cashout") setCashout(String(n(b.valor).toFixed(2)));
@@ -171,6 +193,7 @@ export default function BetRow({ b, casas, users, first, fixada, alternarFixada,
             )}
             <div className="flex-1" />
             <button onClick={() => setModalAposta(b)} className="p-1.5 rounded-md" style={{ color: C.faint }} title="Editar"><Pencil size={15} /></button>
+            <button onClick={() => duplicar()} className="p-1.5 rounded-md" style={{ color: C.faint }} title="Duplicar aposta"><Copy size={15} /></button>
             <button onClick={() => setExcluindo(true)} className="p-1.5 rounded-md" style={{ color: C.faint }} title="Excluir"><Trash2 size={15} /></button>
           </div>
 
