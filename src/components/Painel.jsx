@@ -1,9 +1,10 @@
 "use client";
 import React from "react";
-import { Check, X, ChevronRight, Receipt, TrendingUp } from "lucide-react";
+import { Check, X, ChevronRight, Receipt, TrendingUp, ChevronLeft } from "lucide-react";
 import { C, Card, Label, Input, Empty, Money, Faixa } from "@/lib/ui";
-import { n, brl, sgn, dBR, hoje, fechada, patrimonio } from "@/lib/calc";
+import { n, brl, sgn, dBR, hoje, fechada, patrimonio, diaDaAposta, somarDias } from "@/lib/calc";
 import BetRow from "./BetRow";
+import CalendarioMes from "./CalendarioMes";
 import Patrimonio from "./Patrimonio";
 
 export default function Painel(p) {
@@ -20,7 +21,7 @@ export default function Painel(p) {
       const fa = fixadas.has(a.id) ? 1 : 0;
       const fb = fixadas.has(b.id) ? 1 : 0;
       if (fa !== fb) return fb - fa;
-      return (b.data + (b.criadoEm || "")).localeCompare(a.data + (a.criadoEm || ""));
+      return (diaDaAposta(b) + (b.criadoEm || "")).localeCompare(diaDaAposta(a) + (a.criadoEm || ""));
     });
 
   // Resolvidas só do dia selecionado.
@@ -56,7 +57,32 @@ export default function Painel(p) {
               : "Nada registrado ainda"}
           </p>
         </div>
-        <Input type="date" value={dia} onChange={(e) => setDia(e.target.value)} style={{ width: "auto", height: 40 }} />
+        <div className="flex items-center gap-1.5">
+          <button onClick={() => setDia(somarDias(dia, -1))}
+            className="flex items-center justify-center rounded-lg shrink-0"
+            style={{ width: 36, height: 40, border: `1px solid ${C.line}`, background: C.card, color: C.muted }}
+            title="Dia anterior">
+            <ChevronLeft size={18} />
+          </button>
+
+          <Input type="date" value={dia} onChange={(e) => setDia(e.target.value)} style={{ width: "auto", height: 40 }} />
+
+          <button onClick={() => setDia(somarDias(dia, 1))}
+            className="flex items-center justify-center rounded-lg shrink-0"
+            style={{ width: 36, height: 40, border: `1px solid ${C.line}`, background: C.card, color: C.muted }}
+            title="Próximo dia">
+            <ChevronRight size={18} />
+          </button>
+
+          {!hd && (
+            <button onClick={() => setDia(hoje())}
+              className="rounded-lg px-3 shrink-0"
+              style={{ height: 40, fontSize: 12.5, fontWeight: 600, border: `1px solid ${C.line}`, background: C.card, color: C.green }}
+              title="Voltar para hoje">
+              Hoje
+            </button>
+          )}
+        </div>
       </div>
 
       {aviso && (
@@ -115,6 +141,11 @@ export default function Painel(p) {
       {(cfg.saldoBanco > 0 || depositado > 0 || sacado > 0) && (
         <Patrimonio cfg={cfg} casas={casas} movs={movs} bets={bets} modo="resumo" />
       )}
+
+      {/* calendário do mês: como foi cada dia */}
+      <Card>
+        <CalendarioMes bets={bets} meta={meta} stop={stop} dia={dia} setDia={setDia} />
+      </Card>
 
       <div>
         <div className="flex items-baseline justify-between mb-3">

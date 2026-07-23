@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { Gauge, Receipt, PieChart, Building2, Settings, Plus, Check, LogOut, Wallet, Landmark } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { C } from "@/lib/ui";
-import { hoje, brl, sgn, lucro, fechada, betFromRow, betToInsert, betToUpdate, cfgFromRow, cfgToRow, movFromRow, movToInsert, movToUpdate, contaFromRow, contaToInsert, contaToUpdate, totalPorTipo, n, msgFromRow, msgToInsert } from "@/lib/calc";
+import { hoje, brl, sgn, lucro, fechada, betFromRow, betToInsert, betToUpdate, cfgFromRow, cfgToRow, movFromRow, movToInsert, movToUpdate, contaFromRow, contaToInsert, contaToUpdate, totalPorTipo, n, msgFromRow, msgToInsert, diaDaAposta } from "@/lib/calc";
 
 import Login from "./Login";
 import Painel from "./Painel";
@@ -165,8 +165,18 @@ export default function Root() {
   }, [chatAberto]);
 
   const salvarCfg = async (novo) => {
-    setCfg(novo);
-    const { error } = await supabase.from("config").update(cfgToRow(novo)).eq("id", 1);
+    // Normaliza os números antes de guardar: o formulário entrega texto
+    // ("1234,56") e o resto do app precisa de número para calcular.
+    const limpo = {
+      ...novo,
+      banca: n(novo.banca),
+      saldoBanco: Math.round(n(novo.saldoBanco) * 100) / 100,
+      metaPct: n(novo.metaPct),
+      stopPct: n(novo.stopPct),
+      stakes: (novo.stakes || []).map((s) => ({ ...s, pct: n(s.pct) })),
+    };
+    setCfg(limpo);
+    const { error } = await supabase.from("config").update(cfgToRow(limpo)).eq("id", 1);
     if (error) return flash("Erro ao salvar a banca.");
     flash("Banca atualizada");
   };
@@ -316,7 +326,7 @@ export default function Root() {
   const stop = (cfg.banca * cfg.stopPct) / 100;
   const valorStake = (pct) => (cfg.banca * pct) / 100;
   const lucroTotal = useMemo(() => bets.filter(fechada).reduce((s, b) => s + lucro(b), 0), [bets]);
-  const doDia = useMemo(() => bets.filter((b) => b.data === dia), [bets, dia]);
+  const doDia = useMemo(() => bets.filter((b) => diaDaAposta(b) === dia), [bets, dia]);
   const lucroDia = useMemo(() => doDia.filter(fechada).reduce((s, b) => s + lucro(b), 0), [doDia]);
 
   const depositado = useMemo(() => totalPorTipo(movs, "deposito"), [movs]);

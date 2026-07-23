@@ -2,7 +2,7 @@
 import React, { useMemo } from "react";
 import { PieChart } from "lucide-react";
 import { C, Card, Empty, Big, Tabela, Usuario, Avatar, IconeCasa } from "@/lib/ui";
-import { n, brl, sgn, lucro, fechada } from "@/lib/calc";
+import { n, brl, sgn, lucro, fechada, diaDaAposta } from "@/lib/calc";
 
 export default function Relatorio({ bets, users, casas, cfg, meta, stop, lucroTotal }) {
   const res = bets.filter(fechada);
@@ -25,7 +25,7 @@ export default function Relatorio({ bets, users, casas, cfg, meta, stop, lucroTo
 
   const dias = useMemo(() => {
     const m = {};
-    res.forEach((b) => (m[b.data] ||= []).push(b));
+    res.forEach((b) => (m[diaDaAposta(b)] ||= []).push(b));
     return Object.entries(m).map(([d, a]) => ({ d, ...calc(a) })).sort((a, b) => b.d.localeCompare(a.d));
   }, [bets]);
 

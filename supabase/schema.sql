@@ -67,9 +67,24 @@ create table if not exists public.apostas (
   pernas         jsonb not null default '[]',
   ganho_potencial numeric,
 
+  -- Quando o jogo acontece. É esta data que manda no resultado do dia,
+  -- porque a aposta pertence ao dia em que a bola rola, não ao dia em
+  -- que você a registrou. Numa múltipla com jogos em dias diferentes,
+  -- vale a data do primeiro jogo do bilhete.
+  data_jogo      date,
+  hora_jogo      text not null default '',
+
   constraint status_valido check (status in ('aberta','green','red','void','cashout')),
   constraint tipo_valido check (tipo in ('simples','multipla'))
 );
+
+-- Colunas de data do jogo (para bancos criados antes desta versão).
+alter table public.apostas add column if not exists data_jogo date;
+alter table public.apostas add column if not exists hora_jogo text not null default '';
+
+-- Apostas antigas: a data do jogo passa a ser a data de registro,
+-- que era o comportamento anterior. Assim nada muda de lugar.
+update public.apostas set data_jogo = data where data_jogo is null;
 
 -- Colunas novas. O "if not exists" deixa rodar de novo sem erro,
 -- mesmo se você já tinha criado a tabela antes.

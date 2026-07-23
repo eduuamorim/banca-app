@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Plus, Receipt, Search, SlidersHorizontal, X, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { C, Card, Input, Select, Btn, Empty, Money, Stat, ST } from "@/lib/ui";
-import { n, brl, sgn, dBR, hoje, lucro, fechada } from "@/lib/calc";
+import { n, brl, sgn, dBR, hoje, lucro, fechada, diaDaAposta } from "@/lib/calc";
 import BetRow from "./BetRow";
 
 /* ── atalhos de período ── */
@@ -56,8 +56,8 @@ export default function Apostas(p) {
       if (f.usuario && b.usuarioId !== f.usuario) return false;
       if (f.status && b.status !== f.status) return false;
       if (f.casa && (b.casaId || "") !== f.casa) return false;
-      if (f.de && b.data < f.de) return false;
-      if (f.ate && b.data > f.ate) return false;
+      if (f.de && diaDaAposta(b) < f.de) return false;
+      if (f.ate && diaDaAposta(b) > f.ate) return false;
 
       if (f.oddMin && n(b.odd) < n(f.oddMin)) return false;
       if (f.oddMax && n(b.odd) > n(f.oddMax)) return false;
@@ -99,7 +99,7 @@ export default function Apostas(p) {
 
   const grupos = useMemo(() => {
     const m = {};
-    daPagina.forEach((b) => (m[b.data] ||= []).push(b));
+    daPagina.forEach((b) => (m[diaDaAposta(b)] ||= []).push(b));
     return Object.entries(m).sort((a, b) => b[0].localeCompare(a[0]));
   }, [daPagina]);
 

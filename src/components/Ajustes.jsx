@@ -30,7 +30,7 @@ export default function Ajustes({ cfg, salvarCfg, users, bets, casas, me, sair }
         </p>
         <div className="sm:max-w-xs">
           <Label>Saldo na conta</Label>
-          <Input type="number" step="0.01" value={f.saldoBanco ?? ""} onChange={(e) => setF({ ...f, saldoBanco: e.target.value })} placeholder="0,00" />
+          <Input type="text" inputMode="decimal" value={f.saldoBanco ?? ""} onChange={(e) => setF({ ...f, saldoBanco: e.target.value })} placeholder="0,00" />
           <p className="mt-1.5" style={{ fontSize: 12, color: C.faint }}>
             Ao depositar numa casa, baixe este valor. Ao sacar, aumente. O Patrimônio total fica igual, o dinheiro só troca de lugar.
           </p>

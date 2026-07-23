@@ -67,6 +67,8 @@ export const betFromRow = (r) => ({
   criadoEm: r.criado_em || null,
   editadoEm: r.editado_em || null,
   data: r.data,
+  dataJogo: r.data_jogo || r.data,      // quando a bola rola (manda no dia)
+  horaJogo: r.hora_jogo || "",
   usuarioId: r.usuario_id,
   casaId: r.casa_id || "",
   evento: r.evento || "",
@@ -95,6 +97,8 @@ export const betToInsert = (b, usuarioId) => {
     usuario_id: b.usuarioId || usuarioId,
     casa_id: b.casaId || null,
     data: b.data,
+  data_jogo: b.dataJogo || b.data,
+  hora_jogo: (b.horaJogo || "").trim(),
     nome: b.nome || "",
     evento: eventoDasPernas(b, pernas),
     stake_pct: n(b.stakePct),
@@ -124,6 +128,8 @@ export const betToUpdate = (b) => {
   return {
     casa_id: b.casaId || null,
     data: b.data,
+  data_jogo: b.dataJogo || b.data,
+  hora_jogo: (b.horaJogo || "").trim(),
     nome: b.nome || "",
     evento: eventoDasPernas(b, pernas),
     stake_pct: n(b.stakePct),
@@ -319,7 +325,7 @@ export const resumoPerna = (p) => {
 
 export const cfgFromRow = (r) => ({
   banca: Number(r.banca),
-  saldoBanco: Number(r.saldo_banco || 0),
+  saldoBanco: Math.round(Number(r.saldo_banco || 0) * 100) / 100,
   metaPct: Number(r.meta_pct),
   stopPct: Number(r.stop_pct),
   stakes: r.stakes || [],
@@ -568,3 +574,20 @@ export const selecaoVazia = () => ({ selecao: "", mercado: "", odd: "" });
 
 /** Um evento vazio (um jogo com uma seleção em branco). */
 export const eventoVazio = () => ({ confronto: "", selecoes: [selecaoVazia()] });
+
+
+/**
+ * A data que manda numa aposta: a do jogo.
+ * A aposta pertence ao dia em que a bola rola, não ao dia em que
+ * você a registrou. Apostas antigas (sem data de jogo) caem na
+ * data de registro, mantendo o comportamento anterior.
+ */
+export const diaDaAposta = (b) => b?.dataJogo || b?.data || "";
+
+/** Soma dias a uma data YYYY-MM-DD, no fuso local. */
+export const somarDias = (data, dias) => {
+  const [a, m, d] = String(data || hoje()).split("-").map(Number);
+  const dt = new Date(a, m - 1, d);
+  dt.setDate(dt.getDate() + Number(dias || 0));
+  return dataLocal(dt);
+};

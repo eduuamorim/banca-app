@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { Plus, Trash2, Layers, X } from "lucide-react";
 import { C, Modal, Input, Select, SelectCasa, Label, Btn, ST, Codigo, Avatar } from "@/lib/ui";
-import { uid, hoje, n, brl, sgn, nomeDoEvento, tituloAposta, oddTotal, eventoDasPernas, agruparPorEvento, achatarEventos, selecaoVazia, eventoVazio } from "@/lib/calc";
+import { uid, hoje, n, brl, sgn, nomeDoEvento, tituloAposta, oddTotal, eventoDasPernas, agruparPorEvento, achatarEventos, selecaoVazia, eventoVazio, somarDias, dBR } from "@/lib/calc";
 
 /* ═══════════════════════════════════════════════════════
    Preenchimento automático, em cascata:
@@ -30,6 +30,8 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
     codigo: "",
     nome: bet?.nome || "",
     data: dia || hoje(),
+    dataJogo: bet?.dataJogo || dia || hoje(),
+    horaJogo: bet?.horaJogo || "",
     usuarioId: me.id,
     casaId: bet?.casaId || "",
     evento: bet?.evento || "",
@@ -265,6 +267,46 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
             <b style={{ color: C.body }}>{tituloAposta({ nome: nomeDoEvento(eventoDasPernas({ ...f, pernas: pernasAtuais }, pernasAtuais)), evento: eventoDasPernas({ ...f, pernas: pernasAtuais }, pernasAtuais) })}</b>
             {f.codigo && <>, com o código <b style={{ color: C.body }}>#{f.codigo}</b> ao lado</>}
           </p>
+        </div>
+
+        {/* quando o jogo acontece: é esta data que manda no resultado do dia */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <Label>Quando é o jogo</Label>
+            <span style={{ fontSize: 11.5, color: C.faint }}>manda no resultado do dia</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <input type="date" value={f.dataJogo || hoje()}
+              onChange={(e) => set("dataJogo", e.target.value)}
+              className="rounded-xl px-3"
+              style={{ height: 44, fontSize: 16, border: `1px solid ${C.line}`, outline: "none", color: C.ink, background: C.card }} />
+
+            <input type="time" value={f.horaJogo || ""}
+              onChange={(e) => set("horaJogo", e.target.value)}
+              className="rounded-xl px-3"
+              style={{ height: 44, fontSize: 16, border: `1px solid ${C.line}`, outline: "none", color: C.ink, background: C.card }} />
+
+            {[["Hoje", 0], ["Amanhã", 1], ["Depois", 2]].map(([rot, dias]) => {
+              const alvo = somarDias(hoje(), dias);
+              const on = (f.dataJogo || hoje()) === alvo;
+              return (
+                <button key={rot} type="button" onClick={() => set("dataJogo", alvo)}
+                  className="rounded-lg px-3" style={{
+                    height: 34, fontSize: 12.5, fontWeight: on ? 600 : 500,
+                    border: `1px solid ${on ? C.green : C.line}`,
+                    background: on ? C.greenSoft : C.card,
+                    color: on ? C.greenDeep : C.muted,
+                  }}>
+                  {rot}
+                </button>
+              );
+            })}
+          </div>
+          {(f.dataJogo || hoje()) !== hoje() && (
+            <p className="mt-1.5" style={{ fontSize: 11.5, color: C.blue }}>
+              Esta aposta vai contar no resultado de {dBR(f.dataJogo)}, não de hoje.
+            </p>
+          )}
         </div>
 
         <div>
