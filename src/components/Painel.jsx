@@ -2,7 +2,7 @@
 import React from "react";
 import { Check, X, ChevronRight, Receipt, TrendingUp, ChevronLeft } from "lucide-react";
 import { C, Card, Label, Input, Empty, Money, Faixa } from "@/lib/ui";
-import { n, brl, sgn, dBR, hoje, fechada, patrimonio, diaDaAposta, somarDias } from "@/lib/calc";
+import { n, brl, sgn, dBR, hoje, fechada, patrimonio, diaDaAposta, somarDias, paraBR, deBR, mascaraData } from "@/lib/calc";
 import BetRow from "./BetRow";
 import CalendarioMes from "./CalendarioMes";
 import Patrimonio from "./Patrimonio";
@@ -10,6 +10,11 @@ import Patrimonio from "./Patrimonio";
 export default function Painel(p) {
   const [abaLista, setAbaLista] = React.useState("abertas");
   const { dia, setDia, doDia, lucroDia, meta, stop, cfg, valorStake, casas, users, movs, bets, setModalAposta, mudarStatus, excluirAposta, depositado, sacado, onIrAjustes, fixadas, alternarFixada } = p;
+
+  // O seletor de data em formato brasileiro. Guardamos o texto digitado
+  // à parte e sincronizamos quando o dia muda por fora (setas, calendário).
+  const [diaTexto, setDiaTexto] = React.useState(() => paraBR(dia));
+  React.useEffect(() => { setDiaTexto(paraBR(dia)); }, [dia]);
 
   const abertas = doDia.filter((b) => !fechada(b));
 
@@ -65,7 +70,19 @@ export default function Painel(p) {
             <ChevronLeft size={18} />
           </button>
 
-          <Input type="date" value={dia} onChange={(e) => setDia(e.target.value)} style={{ width: "auto", height: 40 }} />
+          <Input
+            type="text"
+            inputMode="numeric"
+            value={diaTexto}
+            onChange={(e) => {
+              const mascarado = mascaraData(e.target.value);
+              setDiaTexto(mascarado);
+              const iso = deBR(mascarado);
+              if (iso) setDia(iso);
+            }}
+            placeholder="dd/mm/aaaa"
+            style={{ width: 128, height: 40, textAlign: "center" }}
+          />
 
           <button onClick={() => setDia(somarDias(dia, 1))}
             className="flex items-center justify-center rounded-lg shrink-0"

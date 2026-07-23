@@ -1,8 +1,8 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Plus, Trash2, Layers, X } from "lucide-react";
 import { C, Modal, Input, Select, SelectCasa, Label, Btn, ST, Codigo, Avatar } from "@/lib/ui";
-import { uid, hoje, n, brl, sgn, nomeDoEvento, tituloAposta, oddTotal, eventoDasPernas, agruparPorEvento, achatarEventos, selecaoVazia, eventoVazio, somarDias, dBR } from "@/lib/calc";
+import { uid, hoje, n, brl, sgn, nomeDoEvento, tituloAposta, oddTotal, eventoDasPernas, agruparPorEvento, achatarEventos, selecaoVazia, eventoVazio, somarDias, dBR, paraBR, deBR, mascaraData, mascaraHora, horaValida } from "@/lib/calc";
 
 /* ═══════════════════════════════════════════════════════
    Preenchimento automático, em cascata:
@@ -71,6 +71,7 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
   // se perder: espaço e ponto simplesmente sumiam. Agora editamos os
   // eventos direto e só achatamos em pernas na hora de salvar.
   const [eventos, setEventos] = useState(() => agruparPorEvento(inicial.pernas || []));
+  const [dataDigitada, setDataDigitada] = useState(() => paraBR(inicial.dataJogo || hoje()));
 
   const pernasAtuais = achatarEventos(eventos);
   const oddProduto = oddTotal(pernasAtuais);
@@ -79,12 +80,19 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
   const totalSelecoes = eventos.reduce((s, ev) => s + ev.selecoes.length, 0);
   const multipla = totalSelecoes > 1;
 
-  // Quando as seleções mudam, a odd total acompanha o produto,
-  // a menos que você a tenha digitado na mão.
+  // Quando VOCÊ mexe nas seleções, a odd total acompanha o produto.
+  // Mas ao abrir uma aposta para editar, a odd salva é a verdade:
+  // não pode ser sobrescrita (senão some ao abrir, que era o bug).
+  const primeiroRender = useRef(true);
   useEffect(() => {
-    if (f.oddManual) return;
+    if (primeiroRender.current) {
+      primeiroRender.current = false;
+      return;                    // abertura: preserva o que veio do banco
+    }
+    if (f.oddManual) return;      // você digitou a odd na mão
     const prod = oddTotal(achatarEventos(eventos));
-    setF((p) => ({ ...p, odd: prod > 0 ? String(prod.toFixed(2)) : "" }));
+    if (prod <= 0) return;        // sem odds nas seleções: não apaga a que existe
+    setF((p) => ({ ...p, odd: String(prod.toFixed(2)) }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventos]);
 
@@ -276,21 +284,35 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
             <span style={{ fontSize: 11.5, color: C.faint }}>manda no resultado do dia</span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <input type="date" value={f.dataJogo || hoje()}
-              onChange={(e) => set("dataJogo", e.target.value)}
-              className="rounded-xl px-3"
-              style={{ height: 44, fontSize: 16, border: `1px solid ${C.line}`, outline: "none", color: C.ink, background: C.card }} />
+            <Input
+              type="text"
+              inputMode="numeric"
+              value={dataDigitada}
+              onChange={(e) => {
+                const mascarado = mascaraData(e.target.value);
+                setDataDigitada(mascarado);
+                const iso = deBR(mascarado);
+                if (iso) set("dataJogo", iso);
+              }}
+              placeholder="dd/mm/aaaa"
+              style={{ width: 130, textAlign: "center" }}
+            />
 
-            <input type="time" value={f.horaJogo || ""}
-              onChange={(e) => set("horaJogo", e.target.value)}
-              className="rounded-xl px-3"
-              style={{ height: 44, fontSize: 16, border: `1px solid ${C.line}`, outline: "none", color: C.ink, background: C.card }} />
+            <Input
+              type="text"
+              inputMode="numeric"
+              value={f.horaJogo || ""}
+              onChange={(e) => set("horaJogo", mascaraHora(e.target.value))}
+              placeholder="22:30"
+              style={{ width: 84, textAlign: "center" }}
+            />
 
             {[["Hoje", 0], ["Amanhã", 1], ["Depois", 2]].map(([rot, dias]) => {
               const alvo = somarDias(hoje(), dias);
               const on = (f.dataJogo || hoje()) === alvo;
               return (
-                <button key={rot} type="button" onClick={() => set("dataJogo", alvo)}
+                <button key={rot} type="button"
+                  onClick={() => { set("dataJogo", alvo); setDataDigitada(paraBR(alvo)); }}
                   className="rounded-lg px-3" style={{
                     height: 34, fontSize: 12.5, fontWeight: on ? 600 : 500,
                     border: `1px solid ${on ? C.green : C.line}`,
@@ -302,6 +324,12 @@ export default function BetModal({ bet, onClose, cfg, casas, users, me, bets, va
               );
             })}
           </div>
+
+          {f.horaJogo && !horaValida(f.horaJogo) && (
+            <p className="mt-1.5" style={{ fontSize: 11.5, color: C.red }}>
+              Hora inválida. Use de 00:00 a 23:59.
+            </p>
+          )}
           {(f.dataJogo || hoje()) !== hoje() && (
             <p className="mt-1.5" style={{ fontSize: 11.5, color: C.blue }}>
               Esta aposta vai contar no resultado de {dBR(f.dataJogo)}, não de hoje.

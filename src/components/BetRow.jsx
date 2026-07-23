@@ -1,8 +1,8 @@
 "use client";
 import React, { useState } from "react";
-import { Pin, ChevronDown, Pencil, Copy, Trash2, Check, X, MoreHorizontal, ExternalLink } from "lucide-react";
+import { Pin, ChevronDown, Pencil, Copy, Trash2, Check, X, MoreHorizontal, ExternalLink, CalendarDays } from "lucide-react";
 import { C, Pill, SeloResultado, Btn, Money, Codigo, IconeCasa, Confirmar, Input, Label, Avatar } from "@/lib/ui";
-import { n, brl, lucro, fechada, tituloAposta, dataHoraBR, pernasNormalizadas, agruparPorEvento } from "@/lib/calc";
+import { n, brl, lucro, fechada, tituloAposta, dataHoraBR, pernasNormalizadas, agruparPorEvento, hoje, somarDias, horaBonita, dBR } from "@/lib/calc";
 
 /* Cada resolução mostra a consequência em reais ANTES de confirmar. */
 const ACOES = {
@@ -28,6 +28,20 @@ export default function BetRow({ b, casas, users, first, fixada, alternarFixada,
 
   const pernasBilhete = pernasNormalizadas({ pernas: b.pernas, evento: b.evento, odd: b.odd });
   const eventosBilhete = agruparPorEvento(pernasBilhete);
+
+  // Quando o jogo acontece, com destaque conforme a proximidade:
+  // hoje chama atenção, amanhã avisa, passado fica discreto.
+  const quandoJoga = (() => {
+    const d = b.dataJogo;
+    if (!d) return null;
+    const hd = hoje();
+    const amanha = somarDias(hd, 1);
+    const hora = b.horaJogo ? ` · ${horaBonita(b.horaJogo)}` : "";
+    if (d === hd)     return { texto: `Hoje${hora}`,    fundo: C.greenSoft, cor: C.greenDeep, borda: C.greenBand };
+    if (d === amanha) return { texto: `Amanhã${hora}`,  fundo: C.blueSoft,  cor: C.blue,      borda: C.blueBand };
+    if (d < hd)       return { texto: `${dBR(d)}${hora}`, fundo: C.lineSoft, cor: C.muted,    borda: C.line };
+    return { texto: `${dBR(d)}${hora}`, fundo: C.amberSoft, cor: C.amber, borda: C.amberBand };
+  })();
   const multipla = (b.tipo === "multipla") || pernasBilhete.length > 1;
 
   // O nome do bilhete: o confronto cadastrado, com o tipo na frente.
@@ -121,7 +135,21 @@ export default function BetRow({ b, casas, users, first, fixada, alternarFixada,
             {eventosBilhete.map((ev, ie) => (
               <div key={ie} style={{ borderTop: ie === 0 ? "none" : `1px solid ${C.lineSoft}` }}>
                 {ev.confronto && (
-                  <p className="px-4 pt-3 pb-1" style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>{ev.confronto}</p>
+                  <div className="px-4 pt-3 pb-1 flex flex-wrap items-center gap-2">
+                    <p style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>{ev.confronto}</p>
+                    {ie === 0 && quandoJoga && (
+                      <span className="inline-flex items-center gap-1 rounded-md px-2 py-0.5"
+                        style={{
+                          fontSize: 11, fontWeight: 600,
+                          background: quandoJoga.fundo,
+                          color: quandoJoga.cor,
+                          border: `1px solid ${quandoJoga.borda}`,
+                        }}>
+                        <CalendarDays size={11} />
+                        {quandoJoga.texto}
+                      </span>
+                    )}
+                  </div>
                 )}
                 {ev.selecoes.map((s, is) => (
                   <div key={is} className="px-4 py-2 flex items-start justify-between gap-3" style={{ paddingLeft: ev.confronto ? 18 : 16 }}>

@@ -591,3 +591,57 @@ export const somarDias = (data, dias) => {
   dt.setDate(dt.getDate() + Number(dias || 0));
   return dataLocal(dt);
 };
+
+/* ══════════════════════════════════════════════════
+   DATA E HORA NO FORMATO BRASILEIRO
+
+   O navegador mostra data e hora conforme o idioma do
+   sistema, o que traz AM/PM e mês antes do dia. Aqui
+   controlamos o formato: dd/mm/aaaa e 24 horas.
+══════════════════════════════════════════════════ */
+
+/** "2026-07-23" vira "23/07/2026". */
+export const paraBR = (iso) => {
+  if (!iso) return "";
+  const [a, m, d] = String(iso).split("-");
+  return d && m && a ? `${d}/${m}/${a}` : "";
+};
+
+/** "23/07/2026" vira "2026-07-23". Devolve vazio se estiver incompleta. */
+export const deBR = (br) => {
+  const so = String(br || "").replace(/\D/g, "");
+  if (so.length !== 8) return "";
+  const d = so.slice(0, 2), m = so.slice(2, 4), a = so.slice(4, 8);
+  const dia = Number(d), mes = Number(m);
+  if (dia < 1 || dia > 31 || mes < 1 || mes > 12) return "";
+  return `${a}-${m}-${d}`;
+};
+
+/** Vai formatando a data enquanto a pessoa digita: 23 -> 23/07 -> 23/07/2026 */
+export const mascaraData = (texto) => {
+  const so = String(texto || "").replace(/\D/g, "").slice(0, 8);
+  if (so.length <= 2) return so;
+  if (so.length <= 4) return `${so.slice(0, 2)}/${so.slice(2)}`;
+  return `${so.slice(0, 2)}/${so.slice(2, 4)}/${so.slice(4)}`;
+};
+
+/** Máscara de hora em 24h: 22 -> 22:00 -> 22:30. Sem AM/PM. */
+export const mascaraHora = (texto) => {
+  const so = String(texto || "").replace(/\D/g, "").slice(0, 4);
+  if (so.length <= 2) return so;
+  return `${so.slice(0, 2)}:${so.slice(2)}`;
+};
+
+/** Confere se a hora está entre 00:00 e 23:59. */
+export const horaValida = (h) => {
+  const m = String(h || "").match(/^(\d{1,2}):?(\d{2})$/);
+  if (!m) return false;
+  return Number(m[1]) <= 23 && Number(m[2]) <= 59;
+};
+
+/** "22:30" vira "22h30". Só para mostrar. */
+export const horaBonita = (h) => {
+  if (!h) return "";
+  const [hh, mm] = String(h).split(":");
+  return mm ? `${hh}h${mm}` : `${hh}h`;
+};

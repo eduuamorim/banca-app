@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
 import { ChevronDown, X, Copy, Check, AlertTriangle, Minus, Clock, RotateCcw } from "lucide-react";
-import { brl, sgn } from "./calc";
+import { brl, sgn, paraBR, deBR, mascaraData } from "./calc";
 
 export const C = {
   bg: "#F6F6F3",
@@ -620,5 +620,34 @@ export function Faixa({ v, meta, stop, seGanhar, sePerder, temAbertas }) {
       <path d={`M${px} 40 l8 -9 l-16 0 z`} fill={cor} />
       <rect x={px - 3} y={54} width={6} height={30} rx={3} fill={cor} />
     </svg>
+  );
+}
+
+/**
+ * Campo de data no formato brasileiro (dd/mm/aaaa).
+ * O navegador mostra a data conforme o idioma do sistema, o que traz
+ * mês antes do dia. Aqui controlamos: você digita só números e a
+ * barra aparece sozinha. Guarda o valor em ISO por dentro.
+ */
+export function InputData({ value, onChange, placeholder = "dd/mm/aaaa", style, ...resto }) {
+  const [texto, setTexto] = React.useState(() => paraBR(value));
+  React.useEffect(() => { setTexto(paraBR(value)); }, [value]);
+
+  return (
+    <Input
+      type="text"
+      inputMode="numeric"
+      value={texto}
+      onChange={(e) => {
+        const mascarado = mascaraData(e.target.value);
+        setTexto(mascarado);
+        const iso = deBR(mascarado);
+        onChange?.(iso);              // só avisa quando a data está completa e válida
+        if (!mascarado) onChange?.("");
+      }}
+      placeholder={placeholder}
+      style={{ textAlign: "center", ...style }}
+      {...resto}
+    />
   );
 }

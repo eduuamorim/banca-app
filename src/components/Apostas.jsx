@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useMemo, useEffect } from "react";
 import { Plus, Receipt, Search, SlidersHorizontal, X, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
-import { C, Card, Input, Select, Btn, Empty, Money, Stat, ST } from "@/lib/ui";
+import { C, Card, Input, Select, Btn, Empty, Money, Stat, ST, InputData } from "@/lib/ui";
 import { n, brl, sgn, dBR, hoje, lucro, fechada, diaDaAposta } from "@/lib/calc";
 import BetRow from "./BetRow";
 
@@ -204,8 +204,8 @@ export default function Apostas(p) {
               <div>
                 <p className="mb-1.5" style={{ fontSize: 11, fontWeight: 600, letterSpacing: ".04em", textTransform: "uppercase", color: C.muted }}>Período</p>
                 <div className="flex gap-2">
-                  <Input type="date" value={f.de} onChange={(e) => { set("de", e.target.value); set("periodo", "tudo"); }} />
-                  <Input type="date" value={f.ate} onChange={(e) => { set("ate", e.target.value); set("periodo", "tudo"); }} />
+                  <InputData value={f.de} onChange={(iso) => { set("de", iso); set("periodo", "tudo"); }} />
+                  <InputData value={f.ate} onChange={(iso) => { set("ate", iso); set("periodo", "tudo"); }} />
                 </div>
               </div>
               <div>

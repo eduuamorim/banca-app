@@ -4,10 +4,7 @@ import {
   Plus, Wallet, Search, SlidersHorizontal, X, ChevronDown,
   ArrowDownLeft, ArrowUpRight, Pencil, Trash2, Building2,
 } from "lucide-react";
-import {
-  C, Card, Input, Select, SelectCasa, Btn, Empty, Money, Num, Stat, Big,
-  Modal, Label, Confirmar, IconeCasa, Avatar, Aviso,
-} from "@/lib/ui";
+import { C, Card, Input, Select, SelectCasa, Btn, Empty, Money, Num, Stat, Big, Modal, Label, Confirmar, IconeCasa, Avatar, Aviso, InputData } from "@/lib/ui";
 import {
   uid, n, brl, sgn, dBR, hoje, TIPOS, nomeDaConta,
   totalPorTipo, saldoMovimentos, caixaPorCasa,
@@ -269,8 +266,8 @@ export default function Caixa(p) {
               <div>
                 <p className="mb-1.5" style={{ fontSize: 11, fontWeight: 600, letterSpacing: ".04em", textTransform: "uppercase", color: C.muted }}>Período</p>
                 <div className="flex gap-2">
-                  <Input type="date" value={f.de} onChange={(e) => { set("de", e.target.value); set("periodo", "tudo"); }} />
-                  <Input type="date" value={f.ate} onChange={(e) => { set("ate", e.target.value); set("periodo", "tudo"); }} />
+                  <InputData value={f.de} onChange={(iso) => { set("de", iso); set("periodo", "tudo"); }} />
+                  <InputData value={f.ate} onChange={(iso) => { set("ate", iso); set("periodo", "tudo"); }} />
                 </div>
               </div>
               <div>
@@ -458,7 +455,7 @@ function MovModal({ modal, setModal, casas, contas, users, me, salvarMov }) {
         </div>
 
         <div className="grid sm:grid-cols-2 gap-4">
-          <div><Label>Data</Label><Input type="date" value={f.data} onChange={(e) => set("data", e.target.value)} /></div>
+          <div><Label>Data</Label><InputData value={f.data} onChange={(iso) => set("data", iso)} /></div>
           <div><Label>Valor R$</Label>
             <Input type="number" step="0.01" value={f.valor} onChange={(e) => set("valor", e.target.value)} placeholder="0,00" autoFocus />
           </div>
