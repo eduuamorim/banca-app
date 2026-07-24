@@ -54,3 +54,10 @@ input[type="date"] { min-width: 140px; }
     transition-duration: .01ms !important;
   }
 }
+
+
+/* pontinhos do "está digitando" */
+@keyframes pontinho {
+  0%, 60%, 100% { opacity: .25; transform: translateY(0); }
+  30%           { opacity: 1;   transform: translateY(-2px); }
+}

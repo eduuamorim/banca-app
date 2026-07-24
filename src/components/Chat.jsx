@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   Send, Paperclip, X, Trash2, MessageCircle, Check, CheckCheck,
-  Pencil, Reply, Image as IconeImagem, Mic, Play, Pause, Loader2,
+  Pencil, Reply, Image as IconeImagem, Mic, Play, Pause, Loader2, Timer, EyeOff,
 } from "lucide-react";
 import { C, Avatar, Codigo, Empty } from "@/lib/ui";
 import { n, brl, dBR, tituloAposta, mensagensPorDia, horaBR, comprimirImagem, duracaoBonita, tamanhoBonito } from "@/lib/calc";
@@ -81,11 +81,15 @@ function ImagemChat({ caminho, meu }) {
 }
 
 /* ── áudio: player simples com play e barra ── */
-function AudioChat({ caminho, duracao, meu }) {
+const VELOCIDADES = [1, 1.5, 1.7, 2, 2.2];
+
+function AudioChat({ caminho, duracao, meu, onOuvir }) {
   const [url, setUrl] = useState("");
   const [tocando, setTocando] = useState(false);
   const [posicao, setPosicao] = useState(0);
+  const [velocidade, setVelocidade] = useState(1);
   const audioRef = useRef(null);
+  const jaContou = useRef(false);
 
   useEffect(() => {
     let vivo = true;
@@ -96,18 +100,34 @@ function AudioChat({ caminho, duracao, meu }) {
     return () => { vivo = false; };
   }, [caminho]);
 
+  // Mantém a velocidade escolhida mesmo trocando de faixa.
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.playbackRate = velocidade;
+  }, [velocidade, url]);
+
   const alternar = () => {
     const a = audioRef.current;
     if (!a) return;
     if (tocando) { a.pause(); setTocando(false); }
-    else { a.play(); setTocando(true); }
+    else {
+      a.playbackRate = velocidade;
+      a.play();
+      setTocando(true);
+      if (!jaContou.current) { jaContou.current = true; onOuvir?.(); }
+    }
+  };
+
+  // Um toque avança para a próxima velocidade e volta ao normal no fim.
+  const trocarVelocidade = () => {
+    const i = VELOCIDADES.indexOf(velocidade);
+    setVelocidade(VELOCIDADES[(i + 1) % VELOCIDADES.length]);
   };
 
   const total = duracao || 0;
   const pct = total ? Math.min(100, (posicao / total) * 100) : 0;
 
   return (
-    <div className="flex items-center gap-2.5" style={{ minWidth: 180 }}>
+    <div className="flex items-center gap-2" style={{ minWidth: 200 }}>
       <button onClick={alternar} disabled={!url}
         className="flex items-center justify-center rounded-full shrink-0"
         style={{ width: 32, height: 32, background: meu ? "rgba(255,255,255,.22)" : C.greenSoft, color: meu ? "#fff" : C.greenDeep }}>
@@ -123,11 +143,79 @@ function AudioChat({ caminho, duracao, meu }) {
         </span>
       </div>
 
+      <button onClick={trocarVelocidade}
+        className="num shrink-0 rounded-md px-1.5"
+        style={{
+          height: 21, fontSize: 10.5, fontWeight: 700,
+          background: meu ? "rgba(255,255,255,.22)" : C.lineSoft,
+          color: meu ? "#fff" : C.body,
+        }}
+        title="Velocidade">
+        {velocidade}x
+      </button>
+
       {url && (
         <audio ref={audioRef} src={url} preload="none"
           onTimeUpdate={(e) => setPosicao(e.target.currentTime)}
           onEnded={() => { setTocando(false); setPosicao(0); }} />
       )}
+    </div>
+  );
+}
+
+
+/* ── mídia temporária: precisa abrir, e some depois de duas vezes ── */
+function MidiaTemporaria({ msg, meu, onVer, children }) {
+  const [aberta, setAberta] = useState(false);
+  const [vistas, setVistas] = useState(msg.vistas || 0);
+
+  if (msg.expirada) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg px-3 py-2.5"
+        style={{
+          background: meu ? "rgba(255,255,255,.12)" : C.lineSoft,
+          border: `1px dashed ${meu ? "rgba(255,255,255,.35)" : C.line}`,
+        }}>
+        <EyeOff size={14} style={{ color: meu ? "rgba(255,255,255,.8)" : C.faint }} />
+        <span style={{ fontSize: 12, fontStyle: "italic", color: meu ? "rgba(255,255,255,.8)" : C.faint }}>
+          {msg.tipo === "audio" ? "Áudio temporário expirado" : "Imagem temporária expirada"}
+        </span>
+      </div>
+    );
+  }
+
+  if (!aberta) {
+    const restam = Math.max(0, 2 - vistas);
+    return (
+      <button onClick={async () => {
+          setAberta(true);
+          const r = await onVer?.();
+          if (r) setVistas(r.vistas);
+        }}
+        className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 w-full text-left"
+        style={{
+          background: meu ? "rgba(255,255,255,.16)" : C.amberSoft,
+          border: `1px solid ${meu ? "rgba(255,255,255,.35)" : C.amberBand}`,
+        }}>
+        <Timer size={15} style={{ color: meu ? "#fff" : C.amber }} />
+        <div className="min-w-0">
+          <p style={{ fontSize: 12.5, fontWeight: 600, color: meu ? "#fff" : C.amber }}>
+            {msg.tipo === "audio" ? "Áudio temporário" : "Imagem temporária"}
+          </p>
+          <p style={{ fontSize: 11, color: meu ? "rgba(255,255,255,.8)" : C.amber }}>
+            toque para {msg.tipo === "audio" ? "ouvir" : "ver"} · {restam} {restam === 1 ? "vez restante" : "vezes restantes"}
+          </p>
+        </div>
+      </button>
+    );
+  }
+
+  return (
+    <div>
+      {children}
+      <p className="mt-1" style={{ fontSize: 10.5, color: meu ? "rgba(255,255,255,.75)" : C.amber }}>
+        temporária · {Math.max(0, 2 - vistas)} {Math.max(0, 2 - vistas) === 1 ? "vez restante" : "vezes restantes"}
+      </p>
     </div>
   );
 }
@@ -195,7 +283,8 @@ function TrechoResposta({ msg, users, meId, meu, compacto }) {
 export default function Chat(p) {
   const {
     msgs, users, me, bets, enviarMensagem, excluirMensagem, editarMensagem,
-    enviarArquivo, setModalAposta, embutido, leituras = {},
+    enviarArquivo, verMidiaTemporaria, setModalAposta, embutido, leituras = {},
+    atividade, avisarAtividade,
   } = p;
 
   const [texto, setTexto] = useState("");
@@ -207,6 +296,7 @@ export default function Chat(p) {
   const [gravando, setGravando] = useState(false);
   const [segundos, setSegundos] = useState(0);
   const [aviso, setAviso] = useState("");
+  const [perguntando, setPerguntando] = useState(null);   // { arquivo, tipo, duracao }
 
   const fim = useRef(null);
   const rolagem = useRef(null);
@@ -215,6 +305,16 @@ export default function Chat(p) {
   const gravadorRef = useRef(null);
   const relogioRef = useRef(null);
   const campoRef = useRef(null);
+  const pararDigitar = useRef(null);
+
+  // Avisa que você está digitando, e para de avisar depois de um tempo parado.
+  const aoDigitar = (valor) => {
+    setTexto(valor);
+    if (!avisarAtividade) return;
+    avisarAtividade("digitando");
+    clearTimeout(pararDigitar.current);
+    pararDigitar.current = setTimeout(() => avisarAtividade("parou"), 2500);
+  };
 
   // Ao abrir, já aparece embaixo. Depois, mensagem nova desce suave.
   useEffect(() => {
@@ -231,6 +331,7 @@ export default function Chat(p) {
   // Se o chat fechar no meio de uma gravação, encerra o microfone.
   useEffect(() => () => {
     clearInterval(relogioRef.current);
+    clearTimeout(pararDigitar.current);
     gravadorRef.current?.cancelar?.();
   }, []);
 
@@ -255,6 +356,8 @@ export default function Chat(p) {
     }
 
     if (!t && !anexo) return;
+    clearTimeout(pararDigitar.current);
+    avisarAtividade?.("parou");
     enviarMensagem({ texto: t, apostaId: anexo?.id || "", respondeA: respondendo?.id || "" });
     setTexto("");
     setAnexo(null);
@@ -293,10 +396,31 @@ export default function Chat(p) {
         setAviso(`Imagem muito grande (${tamanhoBonito(menor.size)}). O limite é 10 MB.`);
         return;
       }
-      await enviarArquivo({ arquivo: menor, tipo: "imagem", respondeA: respondendo?.id || "" });
+      setPerguntando({ arquivo: menor, tipo: "imagem" });   // pergunta antes de enviar
+    } catch (e) {
+      setAviso(e.message || "Não consegui preparar a imagem.");
+    } finally {
+      setEnviandoArquivo(false);
+    }
+  };
+
+  // Envia de fato, depois de você escolher se é temporária.
+  const confirmarEnvio = async (temporaria) => {
+    const item = perguntando;
+    setPerguntando(null);
+    if (!item) return;
+    setEnviandoArquivo(true);
+    try {
+      await enviarArquivo({
+        arquivo: item.arquivo,
+        tipo: item.tipo,
+        duracao: item.duracao,
+        respondeA: respondendo?.id || "",
+        temporaria,
+      });
       setRespondendo(null);
     } catch (e) {
-      setAviso(e.message || "Não consegui enviar a imagem.");
+      setAviso(e.message || "Não consegui enviar.");
     } finally {
       setEnviandoArquivo(false);
     }
@@ -317,6 +441,7 @@ export default function Chat(p) {
       return;
     }
     gravadorRef.current = g;
+    avisarAtividade?.("gravando");
     setGravando(true);
     setSegundos(0);
     relogioRef.current = setInterval(() => setSegundos((s) => s + 1), 1000);
@@ -324,25 +449,24 @@ export default function Chat(p) {
 
   const pararGravacao = async () => {
     clearInterval(relogioRef.current);
+    avisarAtividade?.("parou");
     const g = gravadorRef.current;
     setGravando(false);
     if (!g) return;
     try {
       const { arquivo, duracao } = await g.parar();
-      setEnviandoArquivo(true);
-      await enviarArquivo({ arquivo, tipo: "audio", duracao, respondeA: respondendo?.id || "" });
-      setRespondendo(null);
+      setPerguntando({ arquivo, tipo: "audio", duracao });   // pergunta antes de enviar
     } catch (e) {
       setAviso(e.message || "A gravação falhou.");
     } finally {
       gravadorRef.current = null;
-      setEnviandoArquivo(false);
       setSegundos(0);
     }
   };
 
   const cancelarGravacao = () => {
     clearInterval(relogioRef.current);
+    avisarAtividade?.("parou");
     gravadorRef.current?.cancelar();
     gravadorRef.current = null;
     setGravando(false);
@@ -401,8 +525,25 @@ export default function Chat(p) {
                             <TrechoResposta msg={respondida} users={users} meId={me.id} meu={meu} />
                           )}
 
-                          {m.tipo === "imagem" && m.arquivoUrl && <ImagemChat caminho={m.arquivoUrl} meu={meu} />}
-                          {m.tipo === "audio" && m.arquivoUrl && <AudioChat caminho={m.arquivoUrl} duracao={m.duracao} meu={meu} />}
+                          {m.tipo === "imagem" && (
+                            m.temporaria ? (
+                              <MidiaTemporaria msg={m} meu={meu} onVer={() => verMidiaTemporaria(m.id)}>
+                                {m.arquivoUrl && <ImagemChat caminho={m.arquivoUrl} meu={meu} />}
+                              </MidiaTemporaria>
+                            ) : (
+                              m.arquivoUrl && <ImagemChat caminho={m.arquivoUrl} meu={meu} />
+                            )
+                          )}
+
+                          {m.tipo === "audio" && (
+                            m.temporaria ? (
+                              <MidiaTemporaria msg={m} meu={meu} onVer={() => verMidiaTemporaria(m.id)}>
+                                {m.arquivoUrl && <AudioChat caminho={m.arquivoUrl} duracao={m.duracao} meu={meu} />}
+                              </MidiaTemporaria>
+                            ) : (
+                              m.arquivoUrl && <AudioChat caminho={m.arquivoUrl} duracao={m.duracao} meu={meu} />
+                            )
+                          )}
 
                           {m.texto && (
                             <p style={{ fontSize: 14, lineHeight: 1.4, color: meu ? "#fff" : C.ink, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{m.texto}</p>
@@ -451,6 +592,54 @@ export default function Chat(p) {
         )}
         <div ref={fim} />
       </div>
+
+      {/* fulano está digitando / gravando */}
+      {atividade && (() => {
+        const quem = users.find((u) => u.id === atividade.usuarioId);
+        if (!quem) return null;
+        const acao = atividade.tipo === "gravando" ? "está gravando áudio" : "está digitando";
+        return (
+          <div className="flex items-center gap-2 px-1 pb-1.5">
+            <Avatar user={quem} size={16} />
+            <span style={{ fontSize: 12, color: C.muted }}>{quem.nome} {acao}</span>
+            <span className="inline-flex items-center gap-0.5">
+              {[0, 1, 2].map((i) => (
+                <span key={i} className="rounded-full" style={{
+                  width: 4, height: 4, background: C.faint,
+                  animation: `pontinho 1.2s ${i * 0.18}s infinite ease-in-out`,
+                }} />
+              ))}
+            </span>
+          </div>
+        );
+      })()}
+
+      {/* temporária ou não? */}
+      {perguntando && (
+        <div className="rounded-xl p-3 mb-2" style={{ background: C.card, border: `1px solid ${C.line}` }}>
+          <p style={{ fontSize: 12.5, fontWeight: 600, color: C.ink }}>
+            {perguntando.tipo === "audio" ? "Enviar este áudio como:" : "Enviar esta imagem como:"}
+          </p>
+          <p style={{ fontSize: 11.5, color: C.muted, marginTop: 1 }}>
+            A temporária some depois de vista duas vezes, ou em 7 dias.
+          </p>
+          <div className="flex flex-wrap gap-2 mt-2.5">
+            <button onClick={() => confirmarEnvio(false)}
+              className="rounded-lg px-3 py-2" style={{ fontSize: 12.5, fontWeight: 600, background: C.green, color: "#fff" }}>
+              Guardar na conversa
+            </button>
+            <button onClick={() => confirmarEnvio(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2"
+              style={{ fontSize: 12.5, fontWeight: 600, background: C.amberSoft, color: C.amber, border: `1px solid ${C.amberBand}` }}>
+              <Timer size={13} /> Temporária
+            </button>
+            <button onClick={() => setPerguntando(null)}
+              className="rounded-lg px-3 py-2" style={{ fontSize: 12.5, color: C.muted, border: `1px solid ${C.line}` }}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* aviso de erro */}
       {aviso && (
@@ -521,15 +710,24 @@ export default function Chat(p) {
           <textarea
             ref={campoRef}
             value={texto}
-            onChange={(e) => setTexto(e.target.value)}
+            onChange={(e) => aoDigitar(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviar(); }
               if (e.key === "Escape") { cancelarEdicao(); setRespondendo(null); }
             }}
             placeholder={editando ? "Edite a mensagem" : "Escreva uma mensagem"}
             rows={1}
-            className="flex-1 rounded-xl px-3.5 py-2.5 resize-none"
-            style={{ fontSize: 16, border: `1px solid ${editando ? C.blueBand : C.line}`, outline: "none", maxHeight: 120 }}
+            className="flex-1 rounded-xl px-3.5 resize-none"
+            style={{
+              fontSize: 16,
+              border: `1px solid ${editando ? C.blueBand : C.line}`,
+              outline: "none",
+              minHeight: 44,
+              maxHeight: 120,
+              paddingTop: 11,
+              paddingBottom: 11,
+              lineHeight: 1.35,
+            }}
           />
 
           {(texto.trim() || anexo || editando) ? (

@@ -34,6 +34,7 @@ export default function Root() {
   const tabRef = useRef("painel");    // aba atual, para o efeito enxergar sem recriar
   const [chatAberto, setChatAberto] = useState(false);
   const [lidoAte, setLidoAte] = useState(null);
+  const [atividade, setAtividade] = useState(null);   // { usuarioId, tipo } de quem está digitando/gravando
   const marcaInicialFeita = useRef(false);
   const [leituras, setLeituras] = useState({});   // usuarioId -> lido_ate (para o "visto")
   const chatAbertoRef = useRef(false);
@@ -106,7 +107,34 @@ export default function Root() {
       .on("postgres_changes", { event: "*", schema: "public", table: "movimentos" }, carregar)
       .on("postgres_changes", { event: "*", schema: "public", table: "contas" }, carregar)
       .on("postgres_changes", { event: "*", schema: "public", table: "fixadas" }, carregar)
-      .on("postgres_changes", { event: "*", schema: "public", table: "mensagens" }, carregar)
+      .on("postgres_changes", { event: "*", schema: "public", table: "mensagens" }, (payload) => {
+        // A conversa atualiza na hora, sem recarregar o app inteiro.
+        // Recarregar tudo a cada mensagem era lento e deixava a contagem
+        // fora de sincronia por alguns instantes.
+        if (payload.eventType === "INSERT" && payload.new) {
+          const nova = msgFromRow(payload.new);
+          setMsgs((arr) => {
+            if (arr.some((m) => m.id === nova.id)) return arr;
+            // troca a provisória (envio otimista) pela real, se houver
+            const semProvisoria = arr.filter((m) =>
+              !(String(m.id).startsWith("tmp-") && m.autorId === nova.autorId && m.texto === nova.texto)
+            );
+            return [...semProvisoria, nova];
+          });
+        } else if (payload.eventType === "UPDATE" && payload.new) {
+          const alterada = msgFromRow(payload.new);
+          setMsgs((arr) => arr.map((m) => (m.id === alterada.id ? alterada : m)));
+        } else if (payload.eventType === "DELETE" && payload.old) {
+          setMsgs((arr) => arr.filter((m) => m.id !== payload.old.id));
+        }
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "leitura_chat" }, (payload) => {
+        // Só atualiza o mapa de leituras (para o "visto"), sem recarregar nada.
+        // Ignora o eco da própria marca: quem grava já atualizou na memória.
+        const r = payload.new;
+        if (!r?.usuario_id || r.usuario_id === meId) return;
+        setLeituras((mapa) => ({ ...mapa, [r.usuario_id]: r.lido_ate }));
+      })
       .subscribe();
     return () => supabase.removeChannel(canal);
   }, [sessao, carregar]);
@@ -115,6 +143,43 @@ export default function Root() {
   useEffect(() => { tabRef.current = tab; }, [tab]);
   useEffect(() => { chatAbertoRef.current = chatAberto; }, [chatAberto]);
   const meId = sessao?.user?.id;
+
+  // Canal de avisos ao vivo ("está digitando", "está gravando").
+  // Usa transmissão direta entre os navegadores: nada é gravado no
+  // banco, então não ocupa espaço nem gera carga.
+  const canalAtividade = useRef(null);
+  const limparAtividade = useRef(null);
+
+  useEffect(() => {
+    if (!meId) return;
+    const canal = supabase.channel("atividade-chat", { config: { broadcast: { self: false } } });
+    canal
+      .on("broadcast", { event: "atividade" }, ({ payload }) => {
+        if (!payload || payload.usuarioId === meId) return;
+        clearTimeout(limparAtividade.current);
+        if (payload.tipo === "parou") {
+          setAtividade(null);
+          return;
+        }
+        setAtividade({ usuarioId: payload.usuarioId, tipo: payload.tipo });
+        // Se a pessoa fechar a aba, o aviso some sozinho.
+        limparAtividade.current = setTimeout(() => setAtividade(null), 5000);
+      })
+      .subscribe();
+    canalAtividade.current = canal;
+    return () => {
+      clearTimeout(limparAtividade.current);
+      supabase.removeChannel(canal);
+      canalAtividade.current = null;
+    };
+  }, [meId]);
+
+  // Avisa a outra pessoa que você está digitando ou gravando.
+  const avisarAtividade = useCallback((tipo) => {
+    const canal = canalAtividade.current;
+    if (!canal || !meId) return;
+    canal.send({ type: "broadcast", event: "atividade", payload: { usuarioId: meId, tipo } });
+  }, [meId]);
   const me = users.find((u) => u.id === meId);
 
   // Prepara o áudio no primeiro toque/clique (exigência dos navegadores).
@@ -158,11 +223,15 @@ export default function Root() {
     setNaoLidas(qtd);
   }, [msgs, meId, lidoAte, chatAberto]);
 
-  // Ao ABRIR o chat (transição para aberto), grava a leitura uma vez.
+  // Enquanto o chat está ABERTO, tudo que chega já nasce lido.
+  // Antes a marca só era gravada na abertura: se a conversa ficasse
+  // aberta e chegasse mensagem, ela virava "não lida" ao fechar.
+  // Era essa a bolinha que aparecia sem ter mensagem nova.
   useEffect(() => {
-    if (chatAberto && meId) marcarLido();
+    if (!chatAberto || !meId) return;
+    marcarLido();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chatAberto]);
+  }, [chatAberto, msgs.length, meId]);
 
   const salvarCfg = async (novo) => {
     // Normaliza os números antes de guardar: o formulário entrega texto
@@ -275,7 +344,7 @@ export default function Root() {
   };
 
   // Envia imagem ou áudio: sobe o arquivo e cria a mensagem apontando para ele.
-  const enviarArquivo = async ({ arquivo, tipo, duracao, respondeA }) => {
+  const enviarArquivo = async ({ arquivo, tipo, duracao, respondeA, temporaria }) => {
     if (!arquivo || !meId) return;
     const caminho = caminhoArquivo(meId, arquivo.name);
 
@@ -290,13 +359,35 @@ export default function Root() {
     }
 
     const { error } = await supabase.from("mensagens").insert(
-      msgToInsert({ texto: "", tipo, arquivoUrl: caminho, duracao, respondeA }, meId)
+      msgToInsert({ texto: "", tipo, arquivoUrl: caminho, duracao, respondeA, temporaria }, meId)
     );
     if (error) {
       // Se a mensagem falhou, o arquivo órfão é removido para não ocupar espaço.
       await supabase.storage.from("chat").remove([caminho]);
       flash("Não consegui enviar: " + (error.message || "erro"));
     }
+  };
+
+  // Registra que uma mídia temporária foi vista. Na segunda vez ela expira
+  // e o arquivo some do armazenamento, liberando espaço.
+  const verMidiaTemporaria = async (id) => {
+    const msg = msgs.find((m) => m.id === id);
+    const caminho = msg?.arquivoUrl;
+
+    const { data, error } = await supabase.rpc("ver_midia_temporaria", { msg_id: id });
+    if (error) return { vistas: 0, expirada: false };
+
+    const r = Array.isArray(data) ? data[0] : data;
+    const expirou = !!r?.expirada;
+
+    if (expirou && caminho) {
+      // O arquivo já não é mais referenciado: remove do armazenamento.
+      await supabase.storage.from("chat").remove([caminho]).catch(() => {});
+    }
+    setMsgs((arr) => arr.map((m) => (
+      m.id === id ? { ...m, vistas: r?.vistas ?? m.vistas, expirada: expirou, arquivoUrl: expirou ? "" : m.arquivoUrl } : m
+    )));
+    return { vistas: r?.vistas ?? 0, expirada: expirou };
   };
 
   const excluirMensagem = async (id) => {
@@ -384,7 +475,8 @@ export default function Root() {
   const ctx = {
     cfg, salvarCfg, bets, casas, contas, users, movs, me, meta, stop, valorStake, flash, dia, setDia,
     fixadas, alternarFixada,
-    msgs, enviarMensagem, excluirMensagem, editarMensagem, enviarArquivo, setTab, leituras,
+    msgs, enviarMensagem, excluirMensagem, editarMensagem, enviarArquivo, verMidiaTemporaria, setTab, leituras,
+    atividade, avisarAtividade,
     doDia, lucroDia, lucroTotal, depositado, sacado,
     setModalAposta, salvarAposta, mudarStatus, excluirAposta,
     salvarCasa, excluirCasa, salvarConta, excluirConta, salvarMov, excluirMov, sair, sessao,

@@ -369,6 +369,14 @@ alter table public.mensagens add column if not exists tipo        text not null 
 alter table public.mensagens add column if not exists arquivo_url text not null default '';
 alter table public.mensagens add column if not exists duracao     integer;
 
+-- ── Mídia temporária ──
+-- Some depois de vista duas vezes, ou em 7 dias, o que vier primeiro.
+-- A bolha continua na conversa marcada como "expirada", para você
+-- lembrar que houve uma mídia ali.
+alter table public.mensagens add column if not exists temporaria  boolean not null default false;
+alter table public.mensagens add column if not exists vistas      integer not null default 0;
+alter table public.mensagens add column if not exists expirada    boolean not null default false;
+
 alter table public.mensagens drop constraint if exists msg_tipo_valido;
 alter table public.mensagens add constraint msg_tipo_valido
   check (tipo in ('texto','imagem','audio'));
@@ -411,6 +419,47 @@ drop trigger if exists antes_de_editar_msg on public.mensagens;
 create trigger antes_de_editar_msg
   before update on public.mensagens
   for each row execute function public.marcar_msg_editada();
+
+-- Registra que a mídia temporária foi vista. Na segunda vez, expira:
+-- o arquivo é marcado para remoção e a bolha vira "expirada".
+create or replace function public.ver_midia_temporaria(msg_id uuid)
+returns table (vistas integer, expirada boolean)
+language plpgsql security definer set search_path = public as $$
+declare
+  atual public.mensagens%rowtype;
+begin
+  select * into atual from public.mensagens where id = msg_id;
+  if not found or not atual.temporaria or atual.expirada then
+    return query select coalesce(atual.vistas, 0), coalesce(atual.expirada, false);
+    return;
+  end if;
+
+  update public.mensagens
+     set vistas = mensagens.vistas + 1,
+         expirada = (mensagens.vistas + 1) >= 2,
+         arquivo_url = case when (mensagens.vistas + 1) >= 2 then '' else mensagens.arquivo_url end
+   where id = msg_id
+   returning mensagens.vistas, mensagens.expirada into vistas, expirada;
+
+  return next;
+end;
+$$;
+
+-- Limpeza por tempo: mídia temporária com mais de 7 dias expira sozinha.
+create or replace function public.expirar_midias_antigas()
+returns integer language plpgsql security definer set search_path = public as $$
+declare
+  quantas integer;
+begin
+  update public.mensagens
+     set expirada = true, arquivo_url = ''
+   where temporaria
+     and not expirada
+     and criado_em < now() - interval '7 days';
+  get diagnostics quantas = row_count;
+  return quantas;
+end;
+$$;
 
 -- ══════════════════════════════════════════════════════════
 --  ARQUIVOS DO CHAT (imagens e áudios)
@@ -694,7 +743,7 @@ do $$
 declare
   t text;
 begin
-  foreach t in array array['apostas', 'movimentos', 'contas', 'fixadas', 'mensagens'] loop
+  foreach t in array array['apostas', 'movimentos', 'contas', 'fixadas', 'mensagens', 'leitura_chat'] loop
     if not exists (
       select 1 from pg_publication_tables
       where pubname = 'supabase_realtime'

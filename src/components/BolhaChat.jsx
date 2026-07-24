@@ -11,7 +11,7 @@ import Chat from "./Chat";
   tela cheia no celular, uma janela no canto no computador.
 */
 export default function BolhaChat(props) {
-  const { naoLidas, aberto, setAberto } = props;
+  const { naoLidas, aberto, setAberto, atividade } = props;
 
   // Detecta desktop para dimensionar a janela: compacta no PC, cheia no celular.
   const [desktop, setDesktop] = React.useState(false);
@@ -38,7 +38,18 @@ export default function BolhaChat(props) {
             boxShadow: "0 6px 20px rgba(14,159,110,.45)",
           }}
           title="Conversa">
-          <MessageCircle size={24} />
+          {atividade ? (
+            <span className="inline-flex items-center gap-0.5">
+              {[0, 1, 2].map((i) => (
+                <span key={i} className="rounded-full" style={{
+                  width: 5, height: 5, background: "#fff",
+                  animation: `pontinho 1.2s ${i * 0.18}s infinite ease-in-out`,
+                }} />
+              ))}
+            </span>
+          ) : (
+            <MessageCircle size={24} />
+          )}
           {naoLidas > 0 && (
             <span className="num absolute inline-flex items-center justify-center"
               style={{ top: -3, right: -3, minWidth: 20, height: 20, padding: "0 5px", borderRadius: 10, background: C.red, color: "#fff", fontSize: 11, fontWeight: 700, border: "2px solid #fff" }}>
@@ -58,7 +69,7 @@ export default function BolhaChat(props) {
 
           <div className="fixed z-50 flex flex-col bg-white overflow-hidden shadow-2xl"
             style={desktop
-              ? { right: 20, bottom: 20, width: 380, height: 600, maxHeight: "calc(100vh - 40px)", borderRadius: 16 }
+              ? { right: 20, bottom: 20, width: 440, height: 680, maxHeight: "calc(100vh - 40px)", borderRadius: 16 }
               : { inset: 0 }}>
             {/* cabeçalho da janela */}
             <div className="flex items-center justify-between px-4 py-3 shrink-0" style={{ background: C.green, color: "#fff" }}>

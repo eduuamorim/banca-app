@@ -502,6 +502,9 @@ export const msgFromRow = (r) => ({
   tipo: r.tipo || "texto",            // texto, imagem ou audio
   arquivoUrl: r.arquivo_url || "",
   duracao: r.duracao ?? null,         // segundos, para o áudio
+  temporaria: !!r.temporaria,         // some depois de vista 2 vezes
+  vistas: r.vistas ?? 0,
+  expirada: !!r.expirada,
 });
 
 export const msgToInsert = (m, autorId) => ({
@@ -512,6 +515,7 @@ export const msgToInsert = (m, autorId) => ({
   tipo: m.tipo || "texto",
   arquivo_url: m.arquivoUrl || "",
   duracao: m.duracao ?? null,
+  temporaria: !!m.temporaria,
 });
 
 /** Agrupa mensagens por dia, para separadores de data na conversa. */
