@@ -361,6 +361,25 @@ create table if not exists public.mensagens (
 
 create index if not exists mensagens_criado_idx on public.mensagens (criado_em);
 
+-- ── Editar, responder e mídia no chat ──
+-- (colunas novas; bancos antigos ganham elas aqui)
+alter table public.mensagens add column if not exists editado_em  timestamptz;
+alter table public.mensagens add column if not exists responde_a  uuid references public.mensagens(id) on delete set null;
+alter table public.mensagens add column if not exists tipo        text not null default 'texto';
+alter table public.mensagens add column if not exists arquivo_url text not null default '';
+alter table public.mensagens add column if not exists duracao     integer;
+
+alter table public.mensagens drop constraint if exists msg_tipo_valido;
+alter table public.mensagens add constraint msg_tipo_valido
+  check (tipo in ('texto','imagem','audio'));
+
+-- Você pode editar as suas mensagens.
+drop policy if exists msg_editar on public.mensagens;
+create policy msg_editar on public.mensagens
+  for update to authenticated
+  using (auth.uid() = autor_id)
+  with check (auth.uid() = autor_id);
+
 alter table public.mensagens enable row level security;
 
 -- Os dois leem tudo. Cada um só envia em seu próprio nome.
@@ -376,6 +395,60 @@ create policy msg_inserir on public.mensagens
 drop policy if exists msg_excluir on public.mensagens;
 create policy msg_excluir on public.mensagens
   for delete to authenticated using (auth.uid() = autor_id);
+
+-- Carimba quando a mensagem foi editada, para a bolha mostrar "editada".
+create or replace function public.marcar_msg_editada()
+returns trigger language plpgsql as $$
+begin
+  if new.texto is distinct from old.texto then
+    new.editado_em := now();
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists antes_de_editar_msg on public.mensagens;
+create trigger antes_de_editar_msg
+  before update on public.mensagens
+  for each row execute function public.marcar_msg_editada();
+
+-- ══════════════════════════════════════════════════════════
+--  ARQUIVOS DO CHAT (imagens e áudios)
+--
+--  O banco guarda texto; arquivo vai para o Storage. Este
+--  bucket é privado: só quem está logado lê e escreve.
+--  As imagens são comprimidas antes do envio, então ocupam
+--  pouco (algumas centenas de KB em vez de vários MB).
+-- ══════════════════════════════════════════════════════════
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'chat',
+  'chat',
+  false,
+  10485760,   -- 10 MB por arquivo, folga suficiente
+  array['image/jpeg','image/png','image/webp','image/gif','audio/webm','audio/mp4','audio/mpeg','audio/ogg']
+)
+on conflict (id) do update
+  set file_size_limit = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types;
+
+-- Quem está logado pode ver os arquivos do chat.
+drop policy if exists chat_ler_arquivo on storage.objects;
+create policy chat_ler_arquivo on storage.objects
+  for select to authenticated using (bucket_id = 'chat');
+
+-- Cada um envia arquivos em seu próprio nome (a pasta é o id do usuário).
+drop policy if exists chat_enviar_arquivo on storage.objects;
+create policy chat_enviar_arquivo on storage.objects
+  for insert to authenticated
+  with check (bucket_id = 'chat' and (storage.foldername(name))[1] = auth.uid()::text);
+
+-- E pode apagar os seus.
+drop policy if exists chat_apagar_arquivo on storage.objects;
+create policy chat_apagar_arquivo on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'chat' and (storage.foldername(name))[1] = auth.uid()::text);
 
 -- ══════════════════════════════════════════════════════════
 --  LEITURA DO CHAT (por usuário)

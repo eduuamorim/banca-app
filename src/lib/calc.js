@@ -497,12 +497,21 @@ export const msgFromRow = (r) => ({
   texto: r.texto || "",
   apostaId: r.aposta_id || "",
   criadoEm: r.criado_em || null,
+  editadoEm: r.editado_em || null,
+  respondeA: r.responde_a || "",
+  tipo: r.tipo || "texto",            // texto, imagem ou audio
+  arquivoUrl: r.arquivo_url || "",
+  duracao: r.duracao ?? null,         // segundos, para o áudio
 });
 
 export const msgToInsert = (m, autorId) => ({
   autor_id: m.autorId || autorId,
   texto: (m.texto || "").trim(),
   aposta_id: m.apostaId || null,
+  responde_a: m.respondeA || null,
+  tipo: m.tipo || "texto",
+  arquivo_url: m.arquivoUrl || "",
+  duracao: m.duracao ?? null,
 });
 
 /** Agrupa mensagens por dia, para separadores de data na conversa. */
@@ -644,4 +653,78 @@ export const horaBonita = (h) => {
   if (!h) return "";
   const [hh, mm] = String(h).split(":");
   return mm ? `${hh}h${mm}` : `${hh}h`;
+};
+
+/* ══════════════════════════════════════════════════
+   ARQUIVOS DO CHAT
+
+   Imagem de celular tem vários MB. Antes de enviar,
+   reduzimos o tamanho e a qualidade: fica com algumas
+   centenas de KB, sem diferença visível na tela, e o
+   armazenamento gratuito dura muito mais.
+══════════════════════════════════════════════════ */
+
+/**
+ * Reduz uma imagem antes do envio.
+ * Devolve um arquivo menor, pronto para subir.
+ */
+export const comprimirImagem = (arquivo, larguraMax = 1600, qualidade = 0.82) =>
+  new Promise((resolve, reject) => {
+    if (!arquivo || !arquivo.type?.startsWith("image/")) return resolve(arquivo);
+    // GIF animado perde a animação se redesenhado: passa direto.
+    if (arquivo.type === "image/gif") return resolve(arquivo);
+
+    const leitor = new FileReader();
+    leitor.onerror = () => reject(new Error("Não consegui ler a imagem."));
+    leitor.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("Imagem inválida."));
+      img.onload = () => {
+        const escala = Math.min(1, larguraMax / img.width);
+        const l = Math.round(img.width * escala);
+        const a = Math.round(img.height * escala);
+
+        const tela = document.createElement("canvas");
+        tela.width = l;
+        tela.height = a;
+        const ctx = tela.getContext("2d");
+        ctx.drawImage(img, 0, 0, l, a);
+
+        tela.toBlob(
+          (blob) => {
+            if (!blob) return resolve(arquivo);         // deu ruim: manda o original
+            if (blob.size >= arquivo.size) return resolve(arquivo);  // não melhorou
+            resolve(new File([blob], trocarExtensao(arquivo.name, "jpg"), { type: "image/jpeg" }));
+          },
+          "image/jpeg",
+          qualidade
+        );
+      };
+      img.src = leitor.result;
+    };
+    leitor.readAsDataURL(arquivo);
+  });
+
+const trocarExtensao = (nome, nova) =>
+  String(nome || "imagem").replace(/\.[^.]+$/, "") + "." + nova;
+
+/** Caminho do arquivo no Storage: cada um na sua pasta. */
+export const caminhoArquivo = (usuarioId, nome) => {
+  const limpo = String(nome || "arquivo").replace(/[^\w.-]/g, "_").slice(-60);
+  return `${usuarioId}/${Date.now()}-${limpo}`;
+};
+
+/** "1:05" a partir de segundos, para a duração do áudio. */
+export const duracaoBonita = (segundos) => {
+  const s = Math.max(0, Math.round(Number(segundos) || 0));
+  const m = Math.floor(s / 60);
+  return `${m}:${String(s % 60).padStart(2, "0")}`;
+};
+
+/** Tamanho legível, para avisar quando um arquivo é grande demais. */
+export const tamanhoBonito = (bytes) => {
+  const b = Number(bytes) || 0;
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 * 1024) return `${Math.round(b / 1024)} KB`;
+  return `${(b / (1024 * 1024)).toFixed(1)} MB`;
 };

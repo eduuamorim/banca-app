@@ -31,7 +31,7 @@ Não pule passos. Não faça fora de ordem. Se travar, vá até o final do guia,
 
 Se você **já publicou** e está só atualizando, faça duas coisas:
 
-**1. Rode o `schema.sql` de novo.** Ele adiciona a data e a hora do jogo nas apostas (as antigas continuam no dia em que foram registradas). Nada é apagado.
+**1. Rode o `schema.sql` de novo.** Ele adiciona editar e responder mensagens, e cria o espaço de arquivos do chat (imagens e áudios). Nada é apagado.
 
 **2. Suba os arquivos novos no GitHub.** A Vercel republica sozinha.
 

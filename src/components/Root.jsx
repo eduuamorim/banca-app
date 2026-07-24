@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { Gauge, Receipt, PieChart, Building2, Settings, Plus, Check, LogOut, Wallet, Landmark } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { C } from "@/lib/ui";
-import { hoje, brl, sgn, lucro, fechada, betFromRow, betToInsert, betToUpdate, cfgFromRow, cfgToRow, movFromRow, movToInsert, movToUpdate, contaFromRow, contaToInsert, contaToUpdate, totalPorTipo, n, msgFromRow, msgToInsert, diaDaAposta } from "@/lib/calc";
+import { hoje, brl, sgn, lucro, fechada, betFromRow, betToInsert, betToUpdate, cfgFromRow, cfgToRow, movFromRow, movToInsert, movToUpdate, contaFromRow, contaToInsert, contaToUpdate, totalPorTipo, n, msgFromRow, msgToInsert, diaDaAposta, caminhoArquivo } from "@/lib/calc";
 
 import Login from "./Login";
 import Painel from "./Painel";
@@ -247,7 +247,7 @@ export default function Root() {
     const texto = (m.texto || "").trim();
     if (!texto && !m.apostaId) return;
     // Otimista: aparece na hora. O realtime sincroniza com o outro.
-    const provisorio = { id: "tmp-" + Date.now(), autorId: meId, texto, apostaId: m.apostaId || "", criadoEm: new Date().toISOString() };
+    const provisorio = { id: "tmp-" + Date.now(), autorId: meId, texto, apostaId: m.apostaId || "", respondeA: m.respondeA || "", tipo: "texto", criadoEm: new Date().toISOString() };
     setMsgs((arr) => [...arr, provisorio]);
     const { error } = await supabase.from("mensagens").insert(msgToInsert(m, meId));
     if (error) {
@@ -262,6 +262,40 @@ export default function Root() {
       } else {
         flash("Não consegui enviar: " + (error.message || "erro desconhecido"));
       }
+    }
+  };
+
+  // Editar uma mensagem já enviada. O banco carimba o "editada em".
+  const editarMensagem = async (id, texto) => {
+    const limpo = (texto || "").trim();
+    if (!limpo) return;
+    setMsgs((arr) => arr.map((m) => (m.id === id ? { ...m, texto: limpo, editadoEm: new Date().toISOString() } : m)));
+    const { error } = await supabase.from("mensagens").update({ texto: limpo }).eq("id", id);
+    if (error) flash("Não consegui editar: " + (error.message || "erro"));
+  };
+
+  // Envia imagem ou áudio: sobe o arquivo e cria a mensagem apontando para ele.
+  const enviarArquivo = async ({ arquivo, tipo, duracao, respondeA }) => {
+    if (!arquivo || !meId) return;
+    const caminho = caminhoArquivo(meId, arquivo.name);
+
+    const { error: erroUpload } = await supabase.storage.from("chat").upload(caminho, arquivo, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: arquivo.type || undefined,
+    });
+    if (erroUpload) {
+      flash("Não consegui enviar o arquivo: " + (erroUpload.message || "erro"));
+      return;
+    }
+
+    const { error } = await supabase.from("mensagens").insert(
+      msgToInsert({ texto: "", tipo, arquivoUrl: caminho, duracao, respondeA }, meId)
+    );
+    if (error) {
+      // Se a mensagem falhou, o arquivo órfão é removido para não ocupar espaço.
+      await supabase.storage.from("chat").remove([caminho]);
+      flash("Não consegui enviar: " + (error.message || "erro"));
     }
   };
 
@@ -350,7 +384,7 @@ export default function Root() {
   const ctx = {
     cfg, salvarCfg, bets, casas, contas, users, movs, me, meta, stop, valorStake, flash, dia, setDia,
     fixadas, alternarFixada,
-    msgs, enviarMensagem, excluirMensagem, setTab, leituras,
+    msgs, enviarMensagem, excluirMensagem, editarMensagem, enviarArquivo, setTab, leituras,
     doDia, lucroDia, lucroTotal, depositado, sacado,
     setModalAposta, salvarAposta, mudarStatus, excluirAposta,
     salvarCasa, excluirCasa, salvarConta, excluirConta, salvarMov, excluirMov, sair, sessao,
