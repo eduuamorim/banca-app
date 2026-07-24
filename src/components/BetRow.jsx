@@ -113,6 +113,18 @@ export default function BetRow({ b, casas, users, first, fixada, alternarFixada,
                   {tituloBilhete}
                 </span>
                 <Codigo valor={b.codigo} destaque size={11} />
+                {quandoJoga && (
+                  <span className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 shrink-0"
+                    style={{
+                      fontSize: 11, fontWeight: 600,
+                      background: quandoJoga.fundo,
+                      color: quandoJoga.cor,
+                      border: `1px solid ${quandoJoga.borda}`,
+                    }}>
+                    <CalendarDays size={11} />
+                    {quandoJoga.texto}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -135,21 +147,7 @@ export default function BetRow({ b, casas, users, first, fixada, alternarFixada,
             {eventosBilhete.map((ev, ie) => (
               <div key={ie} style={{ borderTop: ie === 0 ? "none" : `1px solid ${C.lineSoft}` }}>
                 {ev.confronto && (
-                  <div className="px-4 pt-3 pb-1 flex flex-wrap items-center gap-2">
-                    <p style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>{ev.confronto}</p>
-                    {ie === 0 && quandoJoga && (
-                      <span className="inline-flex items-center gap-1 rounded-md px-2 py-0.5"
-                        style={{
-                          fontSize: 11, fontWeight: 600,
-                          background: quandoJoga.fundo,
-                          color: quandoJoga.cor,
-                          border: `1px solid ${quandoJoga.borda}`,
-                        }}>
-                        <CalendarDays size={11} />
-                        {quandoJoga.texto}
-                      </span>
-                    )}
-                  </div>
+                  <p className="px-4 pt-3 pb-1" style={{ fontSize: 13.5, fontWeight: 700, color: C.ink }}>{ev.confronto}</p>
                 )}
                 {ev.selecoes.map((s, is) => (
                   <div key={is} className="px-4 py-2 flex items-start justify-between gap-3" style={{ paddingLeft: ev.confronto ? 18 : 16 }}>
