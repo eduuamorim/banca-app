@@ -5,15 +5,12 @@ import {
   ArrowDownLeft, ArrowUpRight, Pencil, Trash2, Building2,
 } from "lucide-react";
 import { C, Card, Input, Select, SelectCasa, Btn, Empty, Money, Num, Stat, Big, Modal, Label, Confirmar, IconeCasa, Avatar, Aviso, InputData } from "@/lib/ui";
-import {
-  uid, n, brl, sgn, dBR, hoje, TIPOS, nomeDaConta,
-  totalPorTipo, saldoMovimentos, caixaPorCasa,
-} from "@/lib/calc";
+import { uid, n, brl, sgn, dBR, hoje, TIPOS, nomeDaConta, totalPorTipo, saldoMovimentos, caixaPorCasa, dataLocal } from "@/lib/calc";
 
 const diasAtras = (d) => {
   const t = new Date();
   t.setDate(t.getDate() - d);
-  return t.toISOString().slice(0, 10);
+  return dataLocal(t);   // dia no fuso local, não em UTC
 };
 
 const PERIODOS = [

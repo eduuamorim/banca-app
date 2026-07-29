@@ -83,12 +83,13 @@ function ImagemChat({ caminho, meu }) {
 /* ── áudio: player simples com play e barra ── */
 const VELOCIDADES = [1, 1.5, 1.7, 2, 2.2];
 
-function AudioChat({ caminho, duracao, meu, onOuvir }) {
+function AudioChat({ caminho, duracao, meu, onOuvir, velocidade, onTrocarVelocidade }) {
   const [url, setUrl] = useState("");
   const [tocando, setTocando] = useState(false);
   const [posicao, setPosicao] = useState(0);
-  const [velocidade, setVelocidade] = useState(1);
+  const [duracaoReal, setDuracaoReal] = useState(duracao || 0);
   const audioRef = useRef(null);
+  const barraRef = useRef(null);
   const jaContou = useRef(false);
 
   useEffect(() => {
@@ -100,7 +101,8 @@ function AudioChat({ caminho, duracao, meu, onOuvir }) {
     return () => { vivo = false; };
   }, [caminho]);
 
-  // Mantém a velocidade escolhida mesmo trocando de faixa.
+  // A velocidade vem de fora (é a mesma para todos os áudios) e é
+  // aplicada assim que muda, mesmo com o áudio já tocando.
   useEffect(() => {
     if (audioRef.current) audioRef.current.playbackRate = velocidade;
   }, [velocidade, url]);
@@ -117,13 +119,18 @@ function AudioChat({ caminho, duracao, meu, onOuvir }) {
     }
   };
 
-  // Um toque avança para a próxima velocidade e volta ao normal no fim.
-  const trocarVelocidade = () => {
-    const i = VELOCIDADES.indexOf(velocidade);
-    setVelocidade(VELOCIDADES[(i + 1) % VELOCIDADES.length]);
+  // Clicar (ou arrastar) na barra move o áudio para aquele ponto.
+  const total = duracaoReal || duracao || 0;
+  const irPara = (clientX) => {
+    const barra = barraRef.current;
+    const a = audioRef.current;
+    if (!barra || !a || !total) return;
+    const r = barra.getBoundingClientRect();
+    const frac = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+    a.currentTime = frac * total;
+    setPosicao(frac * total);
   };
 
-  const total = duracao || 0;
   const pct = total ? Math.min(100, (posicao / total) * 100) : 0;
 
   return (
@@ -135,27 +142,49 @@ function AudioChat({ caminho, duracao, meu, onOuvir }) {
       </button>
 
       <div className="flex-1">
-        <div className="rounded-full" style={{ height: 4, background: meu ? "rgba(255,255,255,.25)" : C.lineSoft }}>
-          <div className="rounded-full" style={{ height: 4, width: `${pct}%`, background: meu ? "#fff" : C.green, transition: "width .2s linear" }} />
+        {/* barra clicável e arrastável */}
+        <div
+          ref={barraRef}
+          onClick={(e) => irPara(e.clientX)}
+          onPointerDown={(e) => {
+            irPara(e.clientX);
+            const mover = (ev) => irPara(ev.clientX);
+            const soltar = () => {
+              window.removeEventListener("pointermove", mover);
+              window.removeEventListener("pointerup", soltar);
+            };
+            window.addEventListener("pointermove", mover);
+            window.addEventListener("pointerup", soltar);
+          }}
+          className="relative rounded-full"
+          style={{ height: 12, display: "flex", alignItems: "center", cursor: "pointer", touchAction: "none" }}>
+          <div className="rounded-full w-full" style={{ height: 4, background: meu ? "rgba(255,255,255,.25)" : C.lineSoft }}>
+            <div className="rounded-full" style={{ height: 4, width: `${pct}%`, background: meu ? "#fff" : C.green }} />
+          </div>
+          <span className="absolute rounded-full" style={{
+            left: `calc(${pct}% - 5px)`, width: 10, height: 10,
+            background: meu ? "#fff" : C.green, boxShadow: "0 1px 3px rgba(0,0,0,.2)",
+          }} />
         </div>
         <span className="num" style={{ fontSize: 10.5, color: meu ? "rgba(255,255,255,.75)" : C.muted }}>
           {duracaoBonita(posicao || total)}
         </span>
       </div>
 
-      <button onClick={trocarVelocidade}
+      <button onClick={onTrocarVelocidade}
         className="num shrink-0 rounded-md px-1.5"
         style={{
           height: 21, fontSize: 10.5, fontWeight: 700,
           background: meu ? "rgba(255,255,255,.22)" : C.lineSoft,
           color: meu ? "#fff" : C.body,
         }}
-        title="Velocidade">
+        title="Velocidade (vale para todos os áudios)">
         {velocidade}x
       </button>
 
       {url && (
         <audio ref={audioRef} src={url} preload="none"
+          onLoadedMetadata={(e) => { if (isFinite(e.target.duration)) setDuracaoReal(e.target.duration); }}
           onTimeUpdate={(e) => setPosicao(e.target.currentTime)}
           onEnded={() => { setTocando(false); setPosicao(0); }} />
       )}
@@ -296,6 +325,11 @@ export default function Chat(p) {
   const [gravando, setGravando] = useState(false);
   const [segundos, setSegundos] = useState(0);
   const [aviso, setAviso] = useState("");
+  const [velocidadeAudio, setVelocidadeAudio] = useState(1);   // mesma para todos os áudios
+
+  const trocarVelocidade = () => {
+    setVelocidadeAudio((v) => VELOCIDADES[(VELOCIDADES.indexOf(v) + 1) % VELOCIDADES.length]);
+  };
   const [perguntando, setPerguntando] = useState(null);   // { arquivo, tipo, duracao }
 
   const fim = useRef(null);
@@ -538,10 +572,10 @@ export default function Chat(p) {
                           {m.tipo === "audio" && (
                             m.temporaria ? (
                               <MidiaTemporaria msg={m} meu={meu} onVer={() => verMidiaTemporaria(m.id)}>
-                                {m.arquivoUrl && <AudioChat caminho={m.arquivoUrl} duracao={m.duracao} meu={meu} />}
+                                {m.arquivoUrl && <AudioChat caminho={m.arquivoUrl} duracao={m.duracao} meu={meu} velocidade={velocidadeAudio} onTrocarVelocidade={trocarVelocidade} />}
                               </MidiaTemporaria>
                             ) : (
-                              m.arquivoUrl && <AudioChat caminho={m.arquivoUrl} duracao={m.duracao} meu={meu} />
+                              m.arquivoUrl && <AudioChat caminho={m.arquivoUrl} duracao={m.duracao} meu={meu} velocidade={velocidadeAudio} onTrocarVelocidade={trocarVelocidade} />
                             )
                           )}
 

@@ -522,7 +522,10 @@ export const msgToInsert = (m, autorId) => ({
 export const mensagensPorDia = (msgs) => {
   const grupos = {};
   for (const m of msgs) {
-    const dia = (m.criadoEm || "").slice(0, 10);
+    // O banco guarda o horário em UTC. Precisamos do dia no fuso local,
+    // senão uma mensagem das 22h vira o dia seguinte (o bug do separador
+    // mostrando amanhã). dataLocal converte para o dia certo de quem lê.
+    const dia = m.criadoEm ? dataLocal(new Date(m.criadoEm)) : "";
     (grupos[dia] = grupos[dia] || []).push(m);
   }
   return Object.entries(grupos).sort((a, b) => a[0].localeCompare(b[0]));
@@ -731,4 +734,56 @@ export const tamanhoBonito = (bytes) => {
   if (b < 1024) return `${b} B`;
   if (b < 1024 * 1024) return `${Math.round(b / 1024)} KB`;
   return `${(b / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+/**
+ * O pin de uma aposta ainda vale?
+ * Regras: precisa estar fixada, a aposta precisa estar ABERTA, e a
+ * fixação precisa ter menos de 24 horas. Fora disso, o pin cai.
+ */
+export const pinAtivo = (aposta, quandoFixou) => {
+  if (!quandoFixou) return false;
+  if (fechada(aposta)) return false;                 // resolvida: perde o pin
+  const passou = Date.now() - new Date(quandoFixou).getTime();
+  return passou < 24 * 60 * 60 * 1000;               // menos de 24h
+};
+
+/**
+ * Rótulo do grupo de uma aposta pela data do jogo:
+ * Hoje, Amanhã, Depois de amanhã, ou a própria data.
+ * Serve para dividir a lista por proximidade.
+ */
+export const grupoPorData = (data) => {
+  if (!data) return { ordem: 999999, rotulo: "Sem data" };
+  const hd = hoje();
+  const diff = Math.round(
+    (new Date(data + "T00:00:00").getTime() - new Date(hd + "T00:00:00").getTime()) / 86400000
+  );
+  if (diff < 0) return { ordem: diff, rotulo: `Passado · ${dBR(data)}` };
+  if (diff === 0) return { ordem: 0, rotulo: "Hoje" };
+  if (diff === 1) return { ordem: 1, rotulo: "Amanhã" };
+  if (diff === 2) return { ordem: 2, rotulo: "Depois de amanhã" };
+  return { ordem: diff, rotulo: dBR(data) };
+};
+
+/**
+ * Agrupa apostas por proximidade do jogo, do mais próximo ao mais
+ * distante. Passado vem antes de hoje (jogos atrasados a resolver).
+ * Retorna [{ rotulo, ordem, apostas }].
+ */
+export const apostasPorProximidade = (bets) => {
+  const grupos = {};
+  for (const b of bets) {
+    const g = grupoPorData(diaDaAposta(b));
+    if (!grupos[g.rotulo]) grupos[g.rotulo] = { rotulo: g.rotulo, ordem: g.ordem, apostas: [] };
+    grupos[g.rotulo].apostas.push(b);
+  }
+  // dentro do grupo, ordena por horário do jogo, depois por criação
+  Object.values(grupos).forEach((g) =>
+    g.apostas.sort((a, b) =>
+      (a.horaJogo || "99:99").localeCompare(b.horaJogo || "99:99") ||
+      String(a.criadoEm || "").localeCompare(String(b.criadoEm || ""))
+    )
+  );
+  return Object.values(grupos).sort((a, b) => a.ordem - b.ordem);
 };

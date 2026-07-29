@@ -2,14 +2,14 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Plus, Receipt, Search, SlidersHorizontal, X, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { C, Card, Input, Select, Btn, Empty, Money, Stat, ST, InputData } from "@/lib/ui";
-import { n, brl, sgn, dBR, hoje, lucro, fechada, diaDaAposta } from "@/lib/calc";
+import { n, brl, sgn, dBR, hoje, lucro, fechada, diaDaAposta, dataLocal, pinAtivo, apostasPorProximidade } from "@/lib/calc";
 import BetRow from "./BetRow";
 
 /* ── atalhos de período ── */
 const diasAtras = (d) => {
   const t = new Date();
   t.setDate(t.getDate() - d);
-  return t.toISOString().slice(0, 10);
+  return dataLocal(t);   // dia no fuso local, não em UTC
 };
 
 const PERIODOS = [
@@ -98,10 +98,18 @@ export default function Apostas(p) {
   useEffect(() => { setPagina(1); }, [f]);
 
   const grupos = useMemo(() => {
+    // Em aberto: divide por proximidade do jogo (Hoje, Amanhã, ...),
+    // do mais próximo ao mais distante, com rótulos amigáveis.
+    if (aba === "abertas") {
+      return apostasPorProximidade(daPagina).map((g) => [g.rotulo, g.apostas]);
+    }
+    // Resolvidas: agrupa por dia do jogo, mais recente primeiro.
     const m = {};
     daPagina.forEach((b) => (m[diaDaAposta(b)] ||= []).push(b));
-    return Object.entries(m).sort((a, b) => b[0].localeCompare(a[0]));
-  }, [daPagina]);
+    return Object.entries(m)
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([data, arr]) => [dBR(data), arr]);
+  }, [daPagina, aba]);
 
   return (
     <div className="space-y-5">
@@ -285,14 +293,14 @@ export default function Apostas(p) {
           />
         </Card>
       ) : (
-        grupos.map(([data, arr]) => {
+        grupos.map(([rotulo, arr]) => {
           const total = arr.filter(fechada).reduce((s, b) => s + lucro(b), 0);
           const temFechada = arr.some(fechada);
           return (
-            <div key={data}>
+            <div key={rotulo}>
               <div className="flex items-center justify-between px-1 mb-2">
                 <p style={{ fontSize: 13, fontWeight: 600, color: C.body }}>
-                  {dBR(data)}{data === hoje() && <span style={{ color: C.green, fontWeight: 500 }}> · hoje</span>}
+                  {rotulo}
                 </p>
                 {temFechada && (
                   <Money v={total} prefix size={13} weight={600} color={total > 0 ? C.green : total < 0 ? C.red : C.faint} />
@@ -301,7 +309,7 @@ export default function Apostas(p) {
               <Card pad={false}>
                 {arr.map((b, i) => (
                   <BetRow key={b.id} b={b} casas={casas} users={users} first={i === 0}
-                    fixada={fixadas.has(b.id)} alternarFixada={alternarFixada}
+                    fixada={pinAtivo(b, fixadas[b.id])} alternarFixada={alternarFixada}
                     setModalAposta={setModalAposta} mudarStatus={mudarStatus} excluirAposta={excluirAposta} />
                 ))}
               </Card>

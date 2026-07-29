@@ -1,8 +1,8 @@
 "use client";
 import React from "react";
-import { Check, X, ChevronRight, Receipt, TrendingUp, ChevronLeft } from "lucide-react";
+import { Check, X, ChevronRight, Receipt, TrendingUp, ChevronLeft, Pin } from "lucide-react";
 import { C, Card, Label, Input, Empty, Money, Faixa } from "@/lib/ui";
-import { n, brl, sgn, dBR, hoje, fechada, patrimonio, diaDaAposta, somarDias, paraBR, deBR, mascaraData } from "@/lib/calc";
+import { n, brl, sgn, dBR, hoje, fechada, patrimonio, diaDaAposta, somarDias, paraBR, deBR, mascaraData, pinAtivo, apostasPorProximidade } from "@/lib/calc";
 import BetRow from "./BetRow";
 import CalendarioMes from "./CalendarioMes";
 import Patrimonio from "./Patrimonio";
@@ -18,16 +18,15 @@ export default function Painel(p) {
 
   const abertas = doDia.filter((b) => !fechada(b));
 
-  // Abertas de QUALQUER dia. As fixadas por você sobem para o topo.
-  const todasAbertas = bets
-    .filter((b) => !fechada(b))
-    .slice()
-    .sort((a, b) => {
-      const fa = fixadas.has(a.id) ? 1 : 0;
-      const fb = fixadas.has(b.id) ? 1 : 0;
-      if (fa !== fb) return fb - fa;
-      return (diaDaAposta(b) + (b.criadoEm || "")).localeCompare(diaDaAposta(a) + (a.criadoEm || ""));
-    });
+  // Abertas de qualquer dia. As fixadas (pin ainda válido) sobem para
+  // um bloco no topo; o resto é dividido por proximidade do jogo.
+  const abertasTodas = bets.filter((b) => !fechada(b));
+  const fixadasAtivas = abertasTodas
+    .filter((b) => pinAtivo(b, fixadas[b.id]))
+    .sort((a, b) => (a.horaJogo || "99:99").localeCompare(b.horaJogo || "99:99"));
+  const naoFixadas = abertasTodas.filter((b) => !pinAtivo(b, fixadas[b.id]));
+  const gruposAbertas = apostasPorProximidade(naoFixadas);
+  const todasAbertas = abertasTodas;   // usado só para a contagem na aba
 
   // Resolvidas só do dia selecionado.
   const resolvidasHoje = doDia.filter(fechada);
@@ -206,15 +205,47 @@ export default function Painel(p) {
         </div>
 
         {abaLista === "abertas" ? (
-          <Card pad={false}>
-            {todasAbertas.length === 0
-              ? <Empty icon={Receipt} title="Nenhuma aposta em aberto" hint="Registre uma aposta escolhendo um stake acima." />
-              : todasAbertas.map((b, i) => (
-                  <BetRow key={b.id} b={b} casas={casas} users={users} first={i === 0}
-                    fixada={fixadas.has(b.id)} alternarFixada={alternarFixada}
-                    setModalAposta={setModalAposta} mudarStatus={mudarStatus} excluirAposta={excluirAposta} />
-                ))}
-          </Card>
+          todasAbertas.length === 0 ? (
+            <Card pad={false}>
+              <Empty icon={Receipt} title="Nenhuma aposta em aberto" hint="Registre uma aposta escolhendo um stake acima." />
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {/* fixadas por você sobem para o topo, em bloco próprio */}
+              {fixadasAtivas.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-1.5 mb-2 px-1">
+                    <Pin size={13} style={{ color: C.amber }} />
+                    <span style={{ fontSize: 12.5, fontWeight: 600, color: C.amber }}>Fixadas</span>
+                  </div>
+                  <Card pad={false}>
+                    {fixadasAtivas.map((b, i) => (
+                      <BetRow key={b.id} b={b} casas={casas} users={users} first={i === 0}
+                        fixada={true} alternarFixada={alternarFixada}
+                        setModalAposta={setModalAposta} mudarStatus={mudarStatus} excluirAposta={excluirAposta} />
+                    ))}
+                  </Card>
+                </div>
+              )}
+
+              {/* demais abertas, divididas por proximidade do jogo */}
+              {gruposAbertas.map((g) => (
+                <div key={g.rotulo}>
+                  <div className="flex items-baseline justify-between mb-2 px-1">
+                    <span style={{ fontSize: 12.5, fontWeight: 600, color: C.body }}>{g.rotulo}</span>
+                    <span className="num" style={{ fontSize: 11.5, color: C.faint }}>{g.apostas.length}</span>
+                  </div>
+                  <Card pad={false}>
+                    {g.apostas.map((b, i) => (
+                      <BetRow key={b.id} b={b} casas={casas} users={users} first={i === 0}
+                        fixada={false} alternarFixada={alternarFixada}
+                        setModalAposta={setModalAposta} mudarStatus={mudarStatus} excluirAposta={excluirAposta} />
+                    ))}
+                  </Card>
+                </div>
+              ))}
+            </div>
+          )
         ) : (
           <>
             {resolvidasHoje.length > 0 && (
@@ -227,7 +258,7 @@ export default function Painel(p) {
                 ? <Empty icon={Receipt} title={`Nada resolvido ${hd ? "hoje" : dBR(dia)}`} hint="As apostas resolvidas do dia aparecem aqui." />
                 : resolvidasHoje.map((b, i) => (
                     <BetRow key={b.id} b={b} casas={casas} users={users} first={i === 0}
-                      fixada={fixadas.has(b.id)} alternarFixada={alternarFixada}
+                      fixada={pinAtivo(b, fixadas[b.id])} alternarFixada={alternarFixada}
                       setModalAposta={setModalAposta} mudarStatus={mudarStatus} excluirAposta={excluirAposta} />
                   ))}
             </Card>

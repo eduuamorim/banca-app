@@ -27,7 +27,7 @@ export default function Root() {
   const [users, setUsers] = useState([]);
   const [movs, setMovs] = useState([]);
   const [contas, setContas] = useState([]);
-  const [fixadas, setFixadas] = useState(new Set());
+  const [fixadas, setFixadas] = useState({});   // id da aposta -> quando foi fixada
   const [msgs, setMsgs] = useState([]);
   const [naoLidas, setNaoLidas] = useState(0);
   const qtdMsgAntes = useRef(null);   // quantas msgs havia na última verificação
@@ -67,7 +67,7 @@ export default function Root() {
       supabase.from("apostas").select("*").order("data", { ascending: false }).order("criado_em", { ascending: false }),
       supabase.from("movimentos").select("*").order("data", { ascending: false }).order("criado_em", { ascending: false }),
       supabase.from("contas").select("*").order("criado_em"),
-      supabase.from("fixadas").select("aposta_id"),
+      supabase.from("fixadas").select("aposta_id, criado_em"),
       supabase.from("mensagens").select("*").order("criado_em"),
       supabase.from("leitura_chat").select("usuario_id, lido_ate"),
     ]);
@@ -77,7 +77,11 @@ export default function Root() {
     if (ap.data) setBets(ap.data.map(betFromRow));
     if (mv.data) setMovs(mv.data.map(movFromRow));
     if (ct.data) setContas(ct.data.map(contaFromRow));
-    if (fx.data) setFixadas(new Set(fx.data.map((r) => r.aposta_id)));
+    if (fx.data) {
+      const mapa = {};
+      fx.data.forEach((r) => { mapa[r.aposta_id] = r.criado_em; });
+      setFixadas(mapa);
+    }
     if (ms.data) setMsgs(ms.data.map(msgFromRow));
     if (lc?.data) {
       const mapa = {};
@@ -396,17 +400,22 @@ export default function Root() {
   };
 
   const alternarFixada = async (apostaId) => {
-    const jaFixada = fixadas.has(apostaId);
+    const jaFixada = !!fixadas[apostaId];
+    const agora = new Date().toISOString();
     // atualização otimista: muda na hora, o banco confirma depois
     setFixadas((s) => {
-      const nova = new Set(s);
-      if (jaFixada) nova.delete(apostaId); else nova.add(apostaId);
+      const nova = { ...s };
+      if (jaFixada) delete nova[apostaId]; else nova[apostaId] = agora;
       return nova;
     });
     if (jaFixada) {
       await supabase.from("fixadas").delete().eq("usuario_id", meId).eq("aposta_id", apostaId);
     } else {
-      await supabase.from("fixadas").insert({ usuario_id: meId, aposta_id: apostaId });
+      // upsert: se refixar, renova o prazo de 24h
+      await supabase.from("fixadas").upsert(
+        { usuario_id: meId, aposta_id: apostaId, criado_em: agora },
+        { onConflict: "usuario_id,aposta_id" }
+      );
     }
   };
 
