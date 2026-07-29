@@ -83,7 +83,7 @@ function ImagemChat({ caminho, meu }) {
 /* ── áudio: player simples com play e barra ── */
 const VELOCIDADES = [1, 1.5, 1.7, 2, 2.2];
 
-function AudioChat({ caminho, duracao, meu, onOuvir, velocidade, onTrocarVelocidade }) {
+function AudioChat({ caminho, duracao, meu, onOuvir, velocidade, onTrocarVelocidade, registrar, aoTocar }) {
   const [url, setUrl] = useState("");
   const [tocando, setTocando] = useState(false);
   const [posicao, setPosicao] = useState(0);
@@ -101,6 +101,13 @@ function AudioChat({ caminho, duracao, meu, onOuvir, velocidade, onTrocarVelocid
     return () => { vivo = false; };
   }, [caminho]);
 
+  // Registra este player para que o Chat consiga pausá-lo quando
+  // outro áudio começar (só um toca por vez).
+  useEffect(() => {
+    const cancelar = registrar?.(audioRef, () => setTocando(false));
+    return cancelar;
+  }, [registrar]);
+
   // A velocidade vem de fora (é a mesma para todos os áudios) e é
   // aplicada assim que muda, mesmo com o áudio já tocando.
   useEffect(() => {
@@ -112,6 +119,7 @@ function AudioChat({ caminho, duracao, meu, onOuvir, velocidade, onTrocarVelocid
     if (!a) return;
     if (tocando) { a.pause(); setTocando(false); }
     else {
+      aoTocar?.(a);            // pede ao Chat para pausar os outros
       a.playbackRate = velocidade;
       a.play();
       setTocando(true);
@@ -171,16 +179,18 @@ function AudioChat({ caminho, duracao, meu, onOuvir, velocidade, onTrocarVelocid
         </span>
       </div>
 
-      <button onClick={onTrocarVelocidade}
-        className="num shrink-0 rounded-md px-1.5"
-        style={{
-          height: 21, fontSize: 10.5, fontWeight: 700,
-          background: meu ? "rgba(255,255,255,.22)" : C.lineSoft,
-          color: meu ? "#fff" : C.body,
-        }}
-        title="Velocidade (vale para todos os áudios)">
-        {velocidade}x
-      </button>
+      {tocando && (
+        <button onClick={onTrocarVelocidade}
+          className="num shrink-0 rounded-md px-1.5"
+          style={{
+            height: 21, fontSize: 10.5, fontWeight: 700,
+            background: meu ? "rgba(255,255,255,.22)" : C.lineSoft,
+            color: meu ? "#fff" : C.body,
+          }}
+          title="Velocidade (vale para todos os áudios)">
+          {velocidade}x
+        </button>
+      )}
 
       {url && (
         <audio ref={audioRef} src={url} preload="none"
@@ -330,6 +340,25 @@ export default function Chat(p) {
   const trocarVelocidade = () => {
     setVelocidadeAudio((v) => VELOCIDADES[(VELOCIDADES.indexOf(v) + 1) % VELOCIDADES.length]);
   };
+
+  // Registro de todos os players de áudio, para que só um toque por vez.
+  // Cada player se registra com seu elemento e uma forma de se pausar.
+  const players = useRef([]);
+  const registrarAudio = useCallback((ref, aoPausar) => {
+    const item = { ref, aoPausar };
+    players.current.push(item);
+    return () => { players.current = players.current.filter((x) => x !== item); };
+  }, []);
+
+  // Quando um áudio começa, pausa todos os outros.
+  const aoTocarAudio = useCallback((elemento) => {
+    players.current.forEach(({ ref, aoPausar }) => {
+      if (ref.current && ref.current !== elemento && !ref.current.paused) {
+        ref.current.pause();
+        aoPausar?.();
+      }
+    });
+  }, []);
   const [perguntando, setPerguntando] = useState(null);   // { arquivo, tipo, duracao }
 
   const fim = useRef(null);
@@ -572,10 +601,10 @@ export default function Chat(p) {
                           {m.tipo === "audio" && (
                             m.temporaria ? (
                               <MidiaTemporaria msg={m} meu={meu} onVer={() => verMidiaTemporaria(m.id)}>
-                                {m.arquivoUrl && <AudioChat caminho={m.arquivoUrl} duracao={m.duracao} meu={meu} velocidade={velocidadeAudio} onTrocarVelocidade={trocarVelocidade} />}
+                                {m.arquivoUrl && <AudioChat caminho={m.arquivoUrl} duracao={m.duracao} meu={meu} velocidade={velocidadeAudio} onTrocarVelocidade={trocarVelocidade} registrar={registrarAudio} aoTocar={aoTocarAudio} />}
                               </MidiaTemporaria>
                             ) : (
-                              m.arquivoUrl && <AudioChat caminho={m.arquivoUrl} duracao={m.duracao} meu={meu} velocidade={velocidadeAudio} onTrocarVelocidade={trocarVelocidade} />
+                              m.arquivoUrl && <AudioChat caminho={m.arquivoUrl} duracao={m.duracao} meu={meu} velocidade={velocidadeAudio} onTrocarVelocidade={trocarVelocidade} registrar={registrarAudio} aoTocar={aoTocarAudio} />
                             )
                           )}
 
